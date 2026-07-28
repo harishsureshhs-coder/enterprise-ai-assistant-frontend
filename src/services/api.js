@@ -1,6 +1,6 @@
 const API_URL =
   import.meta.env.VITE_API_URL ||
-  "http://127.0.0.1:8000";
+  "https://mabdo-dtc3gkb3dhctg9hw.eastus-01.azurewebsites.net";
 
 const REQUEST_TIMEOUT_MS = 120000;
 
