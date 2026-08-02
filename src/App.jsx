@@ -6,9 +6,15 @@ import {
 import "./App.css";
 
 import Layout from "./components/layout/Layout";
+
+import {
+  getCurrentUser,
+} from "./services/authService";
+
 import ChatWindow from "./components/chat/ChatWindow";
 import ChatInput from "./components/ChatInput";
 import SuggestedQuestions from "./components/SuggestedQuestions";
+
 
 import {
   sendMessage,
@@ -42,14 +48,17 @@ const initialMessage = {
   suggestions: [],
 };
 
+//---Update Guest user instead of static---//
+// const currentUser = {
+//   id: "dev-user-001",
 
-const currentUser = {
-  id: "dev-user-001",
+//   name: "Suresh",
 
-  name: "Suresh",
+//   email: "suresh@bosch.com",
+// };
 
-  email: "suresh@bosch.com",
-};
+const currentUser =
+  getCurrentUser();
 
 
 const suggestedQuestions = [
@@ -448,7 +457,7 @@ function App() {
 
     const newConversation =
       await createConversation(
-        currentUser.id,
+        currentUser,
         title
       );
 
