@@ -1,30 +1,48 @@
+// const API_BASE_URL =
+//   "https://mabdo-dtc3gkb3dhctg9hw.eastus-01.azurewebsites.net";
+
 const API_BASE_URL =
-  "https://mabdo-dtc3gkb3dhctg9hw.eastus-01.azurewebsites.net";
+  "http://127.0.0.1:8000";
 
 
 export async function createConversation(
-  userId,
+  user,
   title
 ) {
-  const url =
-    `${API_BASE_URL}/conversations` +
-    `?user_id=${encodeURIComponent(userId)}` +
-    `&title=${encodeURIComponent(title)}`;
-
   const response = await fetch(
-    url,
+    `${API_BASE_URL}/conversations`,
     {
       method: "POST",
+
+      headers: {
+        "Content-Type":
+          "application/json",
+      },
+
+      body: JSON.stringify({
+        user_id: user.id,
+
+        display_name:
+          user.name ||
+          "Guest User",
+
+        email_address:
+          user.email ||
+          null,
+
+        title,
+      }),
     }
   );
 
-  const data = await response.json();
+  const data =
+    await response.json();
 
   if (!response.ok) {
     throw new Error(
       data?.detail ||
-        data?.message ||
-        "Failed to create conversation."
+      data?.message ||
+      "Failed to create conversation."
     );
   }
 
