@@ -66,17 +66,13 @@ function AIMessage({
     rows.length > 0 ||
     Boolean(generatedQuery);
 
-  // -----------------------------------------
-  // General GPT response
-  // -----------------------------------------
-
   if (isGeneralChat) {
     return (
       <Box
         sx={{
           display: "flex",
           justifyContent: "flex-start",
-          mb: 3,
+          mb: 2.5,
         }}
       >
         <Paper
@@ -84,10 +80,11 @@ function AIMessage({
           sx={{
             width: {
               xs: "100%",
-              md: "75%",
+              md: "72%",
             },
+            maxWidth: 960,
             px: 3,
-            py: 2.5,
+            py: 2.25,
             border: "1px solid",
             borderColor: "divider",
             borderRadius: 3,
@@ -111,11 +108,11 @@ function AIMessage({
               variant="caption"
               sx={{
                 display: "block",
-                mt: 2,
+                mt: 1.75,
                 color: "text.secondary",
               }}
             >
-              Time:{" "}
+              Response time:{" "}
               {(
                 executionTimeMs /
                 1000
@@ -127,10 +124,6 @@ function AIMessage({
       </Box>
     );
   }
-
-  // -----------------------------------------
-  // SQL analytics response
-  // -----------------------------------------
 
   return (
     <Box
@@ -145,9 +138,13 @@ function AIMessage({
         sx={{
           width: {
             xs: "100%",
-            md: "85%",
+            md: "88%",
           },
-          px: 3,
+          maxWidth: 1180,
+          px: {
+            xs: 2,
+            sm: 3,
+          },
           py: 2.5,
           border: "1px solid",
           borderColor: "divider",
@@ -156,11 +153,19 @@ function AIMessage({
         }}
       >
         {executiveSummary && (
-          <Box sx={{ mb: 2.5 }}>
+          <Box
+            sx={{
+              mb: 2.5,
+              pb: 2.25,
+              borderBottom: "1px solid",
+              borderColor: "divider",
+            }}
+          >
             <Typography
               sx={{
                 fontWeight: 700,
-                mb: 1,
+                mb: 0.8,
+                fontSize: "0.98rem",
               }}
             >
               Executive Summary
@@ -169,7 +174,8 @@ function AIMessage({
             <Typography
               sx={{
                 whiteSpace: "pre-wrap",
-                lineHeight: 1.65,
+                lineHeight: 1.7,
+                color: "text.primary",
               }}
             >
               {executiveSummary}
@@ -178,44 +184,59 @@ function AIMessage({
         )}
 
         {keyInsights.length > 0 && (
-          <Box sx={{ mb: 2.5 }}>
+          <Box
+            sx={{
+              mb: 2.5,
+              pb: 2.25,
+              borderBottom: "1px solid",
+              borderColor: "divider",
+            }}
+          >
             <Typography
               sx={{
                 fontWeight: 700,
                 mb: 1,
+                fontSize: "0.98rem",
               }}
             >
               Key Insights
             </Typography>
 
-            {keyInsights.map(
-              (
-                insight,
-                index
-              ) => (
-                <Typography
-                  key={index}
-                  sx={{
-                    mb: 0.75,
-                    lineHeight: 1.6,
-                  }}
-                >
-                  •{" "}
-                  {typeof insight ===
-                  "string"
-                    ? insight
-                    : insight?.text ||
-                      insight?.insight ||
-                      JSON.stringify(
-                        insight
-                      )}
-                </Typography>
-              )
-            )}
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 0.9,
+              }}
+            >
+              {keyInsights.map(
+                (
+                  insight,
+                  index
+                ) => (
+                  <Typography
+                    key={index}
+                    sx={{
+                      lineHeight: 1.6,
+                      fontSize: "0.93rem",
+                      color: "text.primary",
+                    }}
+                  >
+                    •{" "}
+                    {typeof insight ===
+                    "string"
+                      ? insight
+                      : insight?.text ||
+                        insight?.insight ||
+                        JSON.stringify(
+                          insight
+                        )}
+                  </Typography>
+                )
+              )}
+            </Box>
           </Box>
         )}
-
-        {/* -------- FALLBACK -------- */}
 
         {!hasAnalyticsContent &&
           answer && (
@@ -244,11 +265,19 @@ function AIMessage({
 
         {suggestions.length >
           0 && (
-          <Box sx={{ mt: 2.5 }}>
+          <Box
+            sx={{
+              mt: 2.75,
+              pt: 2.25,
+              borderTop: "1px solid",
+              borderColor: "divider",
+            }}
+          >
             <Typography
               sx={{
                 fontWeight: 700,
-                mb: 1,
+                mb: 1.2,
+                fontSize: "0.95rem",
               }}
             >
               Suggested Next Analysis
@@ -298,15 +327,21 @@ function AIMessage({
                           "divider",
                         borderRadius: 2,
                         backgroundColor:
-                          "transparent",
-                        px: 1.5,
-                        py: 1,
+                          "background.default",
+                        px: 1.6,
+                        py: 0.9,
                         cursor:
                           "pointer",
+                        fontSize:
+                          "0.87rem",
+                        transition:
+                          "all 0.15s ease",
 
                         "&:hover": {
                           backgroundColor:
                             "action.hover",
+                          transform:
+                            "translateY(-1px)",
                         },
                       }}
                     >
