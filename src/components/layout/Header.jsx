@@ -10,16 +10,12 @@ import {
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 
 function Header({ user }) {
-  const userName =
-    user?.name || "User";
+  const userName = user?.name || "User";
+  const userEmail = user?.email || "";
 
-  const userEmail =
-    user?.email || "";
-
-  const userInitial =
-    userName
-      .charAt(0)
-      .toUpperCase();
+  const userInitial = userName
+    .charAt(0)
+    .toUpperCase();
 
   return (
     <>
@@ -59,12 +55,11 @@ function Header({ user }) {
               md: 2.5,
             },
             display: "flex",
-            justifyContent:
-              "space-between",
+            justifyContent: "space-between",
             gap: 2,
           }}
         >
-          {/* Application title */}
+          {/* Application branding */}
           <Box
             sx={{
               display: "flex",
@@ -73,6 +68,7 @@ function Header({ user }) {
               minWidth: 0,
             }}
           >
+            {/* Assistant icon */}
             <Box
               sx={{
                 width: 38,
@@ -91,35 +87,51 @@ function Header({ user }) {
               🤖
             </Box>
 
+            {/* MA AI Assistant image */}
             <Box
               sx={{
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
                 minWidth: 0,
               }}
             >
-              <Typography
-                sx={{
-                  color: "#ffffff",
-                  fontWeight: 700,
-                  lineHeight: 1.15,
-                  fontSize: {
-                    xs: 15,
-                    md: 18,
-                  },
-                  whiteSpace: "nowrap",
+              <Box
+                component="img"
+                src="/ma-ai-assistant-logo.png"
+                alt="MA AI Assistant"
+                onError={(event) => {
+                  console.error(
+                    "Unable to load MA AI Assistant image:",
+                    event.currentTarget.src
+                  );
+
+                  event.currentTarget.style.display =
+                    "none";
                 }}
-              >
-                MA AI Assistant
-              </Typography>
+                sx={{
+                  height: {
+                    xs: 28,
+                    sm: 32,
+                    md: 34,
+                  },
+                  width: "auto",
+                  maxWidth: 190,
+                  objectFit: "contain",
+                  display: "block",
+                }}
+              />
 
               <Typography
                 sx={{
-                  mt: 0.25,
-                  color: "#dceafa",
-                  fontSize: 10.5,
-                  display: {
-                    xs: "none",
-                    sm: "block",
+                  mt: 0.2,
+                  color: "#d7e6f6",
+                  fontSize: {
+                    xs: 8.5,
+                    sm: 9.5,
                   },
+                  fontWeight: 500,
+                  lineHeight: 1.1,
                 }}
               >
                 Enterprise Analytics
@@ -139,21 +151,33 @@ function Header({ user }) {
               flexShrink: 0,
             }}
           >
+            {/* Bosch logo */}
             <Box
               component="img"
               src="/bosch-logo.png"
               alt="Bosch"
-            sx={{
+              onError={(event) => {
+                console.error(
+                  "Unable to load Bosch logo:",
+                  event.currentTarget.src
+                );
+
+                event.currentTarget.style.display =
+                  "none";
+              }}
+              sx={{
                 height: {
-                  xs: 60,
-                  sm: 68,
+                  xs: 45,
+                  sm: 52,
                 },
                 width: "auto",
-                maxWidth: 250,
+                maxWidth: 200,
                 objectFit: "contain",
+                display: "block",
               }}
             />
 
+            {/* Divider */}
             <Box
               sx={{
                 width: "1px",
@@ -167,6 +191,7 @@ function Header({ user }) {
               }}
             />
 
+            {/* User avatar */}
             <Avatar
               sx={{
                 width: 34,
@@ -180,6 +205,7 @@ function Header({ user }) {
               {userInitial}
             </Avatar>
 
+            {/* User details */}
             <Box
               sx={{
                 display: {
@@ -218,6 +244,7 @@ function Header({ user }) {
               )}
             </Box>
 
+            {/* Profile menu */}
             <IconButton
               size="small"
               aria-label="Open profile menu"
