@@ -15,7 +15,6 @@ import ChatWindow from "./components/chat/ChatWindow";
 import ChatInput from "./components/ChatInput";
 import SuggestedQuestions from "./components/SuggestedQuestions";
 
-
 import {
   sendMessage,
 } from "./services/api";
@@ -47,18 +46,6 @@ const initialMessage = {
 
   suggestions: [],
 };
-
-//---Update Guest user instead of static---//
-// const currentUser = {
-//   id: "dev-user-001",
-
-//   name: "Suresh",
-
-//   email: "suresh@bosch.com",
-// };
-
-const currentUser =
-  getCurrentUser();
 
 
 const suggestedQuestions = [
@@ -383,6 +370,26 @@ function normalizeHistoryMessage(
 
 
 function App() {
+  // -------------------------------------------------
+  // Entra authenticated user
+  // -------------------------------------------------
+
+  const [
+    currentUser,
+    setCurrentUser,
+  ] = useState(null);
+
+  const [
+    userLoading,
+    setUserLoading,
+  ] = useState(true);
+
+  const [
+    userError,
+    setUserError,
+  ] = useState(null);
+
+
   const [
     messages,
     setMessages,
@@ -407,15 +414,79 @@ function App() {
 
 
   // -------------------------------------------------
-  // Load conversations when the app starts
+  // Load authenticated Entra user
   // -------------------------------------------------
 
   useEffect(() => {
-    loadConversationHistory();
+    async function loadAuthenticatedUser() {
+      try {
+        setUserLoading(true);
+        setUserError(null);
+
+        const authenticatedUser =
+          await getCurrentUser();
+
+        if (
+          !authenticatedUser?.id
+        ) {
+          throw new Error(
+            "Authenticated Entra user could not be loaded."
+          );
+        }
+
+        console.log(
+          "Authenticated user:",
+          authenticatedUser
+        );
+
+        setCurrentUser(
+          authenticatedUser
+        );
+
+      } catch (error) {
+        console.error(
+          "Unable to load authenticated user:",
+          error
+        );
+
+        setUserError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load authenticated user."
+        );
+
+      } finally {
+        setUserLoading(false);
+      }
+    }
+
+    loadAuthenticatedUser();
   }, []);
 
 
+  // -------------------------------------------------
+  // Load conversations AFTER Entra user is available
+  // -------------------------------------------------
+
+  useEffect(() => {
+    if (
+      !currentUser?.id
+    ) {
+      return;
+    }
+
+    loadConversationHistory();
+
+  }, [currentUser?.id]);
+
+
   async function loadConversationHistory() {
+    if (
+      !currentUser?.id
+    ) {
+      return;
+    }
+
     try {
       const history =
         await getConversations(
@@ -448,6 +519,14 @@ function App() {
       activeConversationId
     ) {
       return activeConversationId;
+    }
+
+    if (
+      !currentUser?.id
+    ) {
+      throw new Error(
+        "Authenticated user is not available."
+      );
     }
 
     const title =
@@ -500,6 +579,16 @@ function App() {
       !cleanQuestion ||
       isLoading
     ) {
+      return;
+    }
+
+    if (
+      !currentUser?.id
+    ) {
+      alert(
+        "Unable to identify the authenticated user."
+      );
+
       return;
     }
 
@@ -886,6 +975,60 @@ function App() {
     } finally {
       setIsLoading(false);
     }
+  }
+
+
+  // -------------------------------------------------
+  // Wait for Entra user before rendering application
+  // -------------------------------------------------
+
+  if (userLoading) {
+    return (
+      <div
+        style={{
+          height: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: "Arial, sans-serif",
+          color: "#174779",
+        }}
+      >
+        Loading your profile...
+      </div>
+    );
+  }
+
+
+  // -------------------------------------------------
+  // Authentication/profile error
+  // -------------------------------------------------
+
+  if (
+    userError ||
+    !currentUser
+  ) {
+    return (
+      <div
+        style={{
+          height: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+          fontFamily: "Arial, sans-serif",
+        }}
+      >
+        <strong>
+          Unable to load your user profile.
+        </strong>
+
+        <span>
+          {userError}
+        </span>
+      </div>
+    );
   }
 
 
