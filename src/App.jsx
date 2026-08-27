@@ -16,7 +16,7 @@ import ChatInput from "./components/ChatInput";
 import SuggestedQuestions from "./components/SuggestedQuestions";
 
 import {
-  sendMessage,
+  sendMessageStream,
 } from "./services/api";
 
 import {
@@ -370,6 +370,7 @@ function normalizeHistoryMessage(
 
 
 function App() {
+
   // -------------------------------------------------
   // Entra authenticated user
   // -------------------------------------------------
@@ -636,6 +637,10 @@ function App() {
       crypto.randomUUID();
 
 
+    // -------------------------------------------------
+    // Add the user question + one temporary AI message
+    // -------------------------------------------------
+
     setMessages(
       (previous) => [
         ...previous,
@@ -653,7 +658,7 @@ function App() {
             "PLANNER",
 
           text:
-            "Understanding your request and preparing the response...",
+            "Processing your request...",
 
           isLoading:
             true,
@@ -663,12 +668,45 @@ function App() {
 
 
     try {
+
+      // -------------------------------------------------
+      // SSE request
+      // -------------------------------------------------
+
       const response =
-        await sendMessage(
+        await sendMessageStream(
           cleanQuestion,
-          conversationId
+          conversationId,
+
+          () => {
+
+            // ---------------------------------------------
+            // The same loading message is updated.
+            // No additional message is created.
+            // ---------------------------------------------
+
+            setMessages(
+              (previous) =>
+                previous.map(
+                  (message) =>
+                    message.id ===
+                    loadingId
+                      ? {
+                          ...message,
+
+                          text:
+                            "Processing your request...",
+                        }
+                      : message
+                )
+            );
+          }
         );
 
+
+      // -------------------------------------------------
+      // Normalize rows
+      // -------------------------------------------------
 
       const rows =
         Array.isArray(
@@ -684,6 +722,10 @@ function App() {
             );
 
 
+      // -------------------------------------------------
+      // Detect response engine
+      // -------------------------------------------------
+
       const responseEngine =
         String(
           response?.engine ||
@@ -696,6 +738,10 @@ function App() {
         ).toUpperCase();
 
 
+      // -------------------------------------------------
+      // Get final answer text
+      // -------------------------------------------------
+
       const answer =
         response?.answer ||
         response?.summary ||
@@ -707,6 +753,10 @@ function App() {
             : "The query completed successfully."
         );
 
+
+      // -------------------------------------------------
+      // Build final assistant message
+      // -------------------------------------------------
 
       const assistantMessage = {
         id:
@@ -814,6 +864,10 @@ function App() {
       };
 
 
+      // -------------------------------------------------
+      // Replace loading message with final response
+      // -------------------------------------------------
+
       setMessages(
         (previous) =>
           previous.map(
@@ -826,10 +880,21 @@ function App() {
       );
 
 
+      // -------------------------------------------------
+      // Refresh sidebar history
+      // -------------------------------------------------
+
       await loadConversationHistory();
 
 
     } catch (error) {
+
+      console.error(
+        "Unable to process chat request:",
+        error
+      );
+
+
       const errorMessage = {
         id:
           crypto.randomUUID(),
@@ -867,6 +932,10 @@ function App() {
           null,
       };
 
+
+      // -------------------------------------------------
+      // Replace loading message with error
+      // -------------------------------------------------
 
       setMessages(
         (previous) =>
@@ -990,8 +1059,10 @@ function App() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          fontFamily: "Arial, sans-serif",
-          color: "#174779",
+          fontFamily:
+            "Arial, sans-serif",
+          color:
+            "#174779",
         }}
       >
         Loading your profile...
@@ -1013,11 +1084,15 @@ function App() {
         style={{
           height: "100vh",
           display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
+          flexDirection:
+            "column",
+          alignItems:
+            "center",
+          justifyContent:
+            "center",
           gap: 8,
-          fontFamily: "Arial, sans-serif",
+          fontFamily:
+            "Arial, sans-serif",
         }}
       >
         <strong>
@@ -1031,6 +1106,10 @@ function App() {
     );
   }
 
+
+  // -------------------------------------------------
+  // Application
+  // -------------------------------------------------
 
   return (
     <Layout
@@ -1054,6 +1133,7 @@ function App() {
         handleNewChat
       }
     >
+
       <div className="chat-container">
 
         <ChatWindow
@@ -1106,6 +1186,7 @@ function App() {
         </div>
 
       </div>
+
     </Layout>
   );
 }

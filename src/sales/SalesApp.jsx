@@ -1,0 +1,2615 @@
+import {
+  useEffect,
+  useState,
+} from "react";
+
+import "../App.css";
+
+import Layout
+  from "../components/layout/Layout";
+
+import ChatWindow
+  from "../components/chat/ChatWindow";
+
+import ChatInput
+  from "../components/ChatInput";
+
+import SalesResponseOptions
+  from "../components/sales/SalesResponseOptions";
+
+import SalesRecordingPanel
+  from "../components/sales/SalesRecordingPanel";
+
+import SalesCustomerSelector
+  from "../components/sales/SalesCustomerSelector";
+
+import SalesBusinessSnapshot
+  from "../components/sales/SalesBusinessSnapshot";
+
+import SalesVisitPanel
+  from "../components/sales/SalesVisitPanel";
+
+import {
+  startSalesVisit,
+} from "../services/salesVisitApi";
+
+import {
+  getCurrentUser,
+} from "../services/authService";
+
+
+import {
+  sendMessageStream,
+} from "../services/api";
+
+
+import {
+  createConversation,
+  getConversations,
+  getConversationMessages,
+} from "../services/conversationApi";
+
+
+import {
+  uploadSalesRecording,
+  transcribeSalesRecording,
+  summarizeSalesTranscript,
+} from "../services/salesRecordingApi";
+
+
+import {
+  getSalesCustomerSnapshot,
+} from "../services/salesCustomerApi";
+
+
+// import {
+//   startSalesVisit,
+// } from "../services/salesVisitApi";
+
+
+// =========================================================
+// INITIAL SALES MESSAGE
+// =========================================================
+
+const salesInitialMessage = {
+  id:
+    "sales-welcome",
+
+  role:
+    "ai",
+
+  engine:
+    "CHAT",
+
+  text:
+    "Hi! I'm your Sales Intelligence Agent. " +
+    "How can I assist you today?",
+
+  source:
+    "GPT",
+
+  status:
+    "success",
+
+  rows:
+    [],
+
+  keyInsights:
+    [],
+
+  suggestions:
+    [],
+};
+
+
+// =========================================================
+// CREATE CONVERSATION TITLE
+// =========================================================
+
+function createConversationTitle(
+  question
+) {
+
+  const maximumLength =
+    32;
+
+
+  if (
+    question.length <=
+    maximumLength
+  ) {
+
+    return question;
+  }
+
+
+  return (
+    `${question.slice(
+      0,
+      maximumLength
+    )}...`
+  );
+}
+
+
+// =========================================================
+// NORMALIZE ARRAY
+// =========================================================
+
+function normalizeArrayValue(
+  value
+) {
+
+  if (
+    Array.isArray(
+      value
+    )
+  ) {
+
+    return value;
+  }
+
+
+  if (
+    typeof value ===
+    "string"
+  ) {
+
+    try {
+
+      const parsedValue =
+        JSON.parse(
+          value
+        );
+
+
+      return Array.isArray(
+        parsedValue
+      )
+        ? parsedValue
+        : [];
+
+
+    } catch {
+
+      return [];
+    }
+  }
+
+
+  return [];
+}
+
+
+// =========================================================
+// NORMALIZE OBJECT
+// =========================================================
+
+function normalizeObjectValue(
+  value
+) {
+
+  if (
+    value &&
+    typeof value ===
+      "object" &&
+    !Array.isArray(
+      value
+    )
+  ) {
+
+    return value;
+  }
+
+
+  if (
+    typeof value ===
+    "string"
+  ) {
+
+    try {
+
+      const parsedValue =
+        JSON.parse(
+          value
+        );
+
+
+      if (
+        parsedValue &&
+        typeof parsedValue ===
+          "object" &&
+        !Array.isArray(
+          parsedValue
+        )
+      ) {
+
+        return parsedValue;
+      }
+
+
+      return null;
+
+
+    } catch {
+
+      return null;
+    }
+  }
+
+
+  return null;
+}
+
+
+// =========================================================
+// NORMALIZE HISTORY MESSAGE
+// =========================================================
+
+function normalizeHistoryMessage(
+  message
+) {
+
+  const role = (
+    message.MessageRole ??
+    message.message_role ??
+    ""
+  ).toUpperCase();
+
+
+  const responsePayload =
+    normalizeObjectValue(
+      message.ResponsePayload ??
+      message.response_payload ??
+      null
+    );
+
+
+  const rows =
+    normalizeArrayValue(
+      responsePayload?.rows ??
+      message.Rows ??
+      message.rows
+    );
+
+
+  const engine = (
+    responsePayload?.engine ??
+    message.Engine ??
+    message.engine ??
+    (
+      role === "USER"
+        ? null
+        : "CHAT"
+    )
+  );
+
+
+  const answer =
+    responsePayload?.answer ??
+    responsePayload?.summary ??
+    responsePayload?.executive_summary ??
+    message.MessageText ??
+    message.message_text ??
+    "";
+
+
+  return {
+    id:
+      message.MessageId ??
+      message.message_id ??
+      crypto.randomUUID(),
+
+    role:
+      role === "USER"
+        ? "user"
+        : "ai",
+
+    engine:
+      engine
+        ? String(
+            engine
+          ).toUpperCase()
+        : null,
+
+    text:
+      answer,
+
+    answer,
+
+    content:
+      answer,
+
+    executiveSummary:
+      responsePayload?.executive_summary ??
+      message.ExecutiveSummary ??
+      message.executive_summary ??
+      null,
+
+    keyInsights:
+      normalizeArrayValue(
+        responsePayload?.key_insights ??
+        message.KeyInsights ??
+        message.key_insights
+      ),
+
+    visual:
+      normalizeObjectValue(
+        responsePayload?.visual ??
+        message.Visual ??
+        message.visual
+      ),
+
+    suggestions:
+      normalizeArrayValue(
+        responsePayload?.suggestions ??
+        responsePayload?.suggested_questions ??
+        message.Suggestions ??
+        message.suggestions
+      ),
+
+    rows,
+
+    generatedQuery:
+      responsePayload?.generated_sql ??
+      responsePayload?.executed_sql ??
+      message.GeneratedQuery ??
+      message.generated_query ??
+      null,
+
+    executedQuery:
+      responsePayload?.executed_sql ??
+      null,
+
+    source:
+      responsePayload?.source ??
+      message.DataSource ??
+      message.data_source ??
+      (
+        engine === "CHAT"
+          ? "GPT"
+          : "Azure SQL"
+      ),
+
+    status:
+      responsePayload?.status ??
+      message.ExecutionStatus ??
+      message.execution_status ??
+      (
+        role === "ASSISTANT"
+          ? "success"
+          : null
+      ),
+
+    executionTime:
+      responsePayload?.execution_time_ms ??
+      message.ExecutionTimeMs ??
+      message.execution_time_ms ??
+      null,
+
+    rowCount:
+      responsePayload?.row_count ??
+      message.RowCount ??
+      message.row_count ??
+      rows.length,
+  };
+}
+
+
+// =========================================================
+// SALES APP
+// =========================================================
+
+function SalesApp() {
+
+  // =====================================================
+  // AUTHENTICATED USER
+  // =====================================================
+
+  const [
+    currentUser,
+    setCurrentUser,
+  ] = useState(null);
+
+
+  const [
+    userLoading,
+    setUserLoading,
+  ] = useState(true);
+
+
+  const [
+    userError,
+    setUserError,
+  ] = useState(null);
+
+
+  // =====================================================
+  // CHAT
+  // =====================================================
+
+  const [
+    messages,
+    setMessages,
+  ] = useState([
+    salesInitialMessage,
+  ]);
+
+
+  const [
+    isLoading,
+    setIsLoading,
+  ] = useState(false);
+
+
+  const [
+    conversations,
+    setConversations,
+  ] = useState([]);
+
+
+  const [
+    activeConversationId,
+    setActiveConversationId,
+  ] = useState(null);
+
+
+  // =====================================================
+  // RESPONSE MODE
+  // =====================================================
+
+  const [
+    responseMode,
+    setResponseMode,
+  ] = useState(
+    "text"
+  );
+
+
+  // =====================================================
+  // PRIMARY CUSTOMER
+  // =====================================================
+
+  const [
+    selectedCustomer,
+    setSelectedCustomer,
+  ] = useState(null);
+
+
+  const [
+    customerSnapshot,
+    setCustomerSnapshot,
+  ] = useState(null);
+
+
+  const [
+    isLoadingCustomerSnapshot,
+    setIsLoadingCustomerSnapshot,
+  ] = useState(false);
+
+
+  const [
+    customerSnapshotError,
+    setCustomerSnapshotError,
+  ] = useState(null);
+
+
+  // =====================================================
+  // ACTIVE SALES VISIT
+  // =====================================================
+
+  const [
+    activeVisit,
+    setActiveVisit,
+  ] = useState(null);
+
+
+  const [
+    isStartingVisit,
+    setIsStartingVisit,
+  ] = useState(false);
+
+
+  const [
+    startVisitError,
+    setStartVisitError,
+  ] = useState(null);
+
+
+  // =====================================================
+  // RECORDING
+  // =====================================================
+
+  const [
+    salesRecording,
+    setSalesRecording,
+  ] = useState(null);
+
+
+  const [
+    savedRecording,
+    setSavedRecording,
+  ] = useState(null);
+
+
+  // =====================================================
+  // RECORDING PROCESSING
+  // =====================================================
+
+  const [
+    isSavingRecording,
+    setIsSavingRecording,
+  ] = useState(false);
+
+
+  const [
+    isTranscribing,
+    setIsTranscribing,
+  ] = useState(false);
+
+
+  const [
+    isSummarizing,
+    setIsSummarizing,
+  ] = useState(false);
+
+
+  // =====================================================
+  // TRANSCRIPTION
+  // =====================================================
+
+  const [
+    transcription,
+    setTranscription,
+  ] = useState(null);
+
+
+  // =====================================================
+  // CONVERSATION HIGHLIGHTS
+  // =====================================================
+
+  const [
+    conversationHighlights,
+    setConversationHighlights,
+  ] = useState([]);
+
+
+  // =====================================================
+  // RECORDING ERROR
+  // =====================================================
+
+  const [
+    recordingProcessingError,
+    setRecordingProcessingError,
+  ] = useState(null);
+
+
+  // =====================================================
+  // LOAD AUTHENTICATED USER
+  // =====================================================
+
+  useEffect(
+    () => {
+
+      async function loadAuthenticatedUser() {
+
+        try {
+
+          setUserLoading(
+            true
+          );
+
+
+          setUserError(
+            null
+          );
+
+
+          const authenticatedUser =
+            await getCurrentUser();
+
+
+          if (
+            !authenticatedUser?.id
+          ) {
+
+            throw new Error(
+              "Authenticated Entra user could not be loaded."
+            );
+          }
+
+
+          console.log(
+            "Sales authenticated user:",
+            authenticatedUser
+          );
+
+
+          setCurrentUser(
+            authenticatedUser
+          );
+
+
+        } catch (error) {
+
+          console.error(
+            "Unable to load Sales Agent user:",
+            error
+          );
+
+
+          setUserError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load authenticated user."
+          );
+
+
+        } finally {
+
+          setUserLoading(
+            false
+          );
+        }
+      }
+
+
+      loadAuthenticatedUser();
+
+    },
+    []
+  );
+
+
+  // =====================================================
+  // LOAD CONVERSATION HISTORY
+  // =====================================================
+
+  useEffect(
+    () => {
+
+      if (
+        !currentUser?.id
+      ) {
+
+        return;
+      }
+
+
+      loadConversationHistory();
+
+    },
+    [
+      currentUser?.id,
+    ]
+  );
+
+
+  // =====================================================
+  // LOAD CONVERSATIONS
+  // =====================================================
+
+  async function loadConversationHistory() {
+
+    if (
+      !currentUser?.id
+    ) {
+
+      return;
+    }
+
+
+    try {
+
+      const history =
+        await getConversations(
+          currentUser.id
+        );
+
+
+      setConversations(
+        Array.isArray(
+          history
+        )
+          ? history
+          : []
+      );
+
+
+    } catch (error) {
+
+      console.error(
+        "Unable to load Sales conversations:",
+        error
+      );
+    }
+  }
+
+
+  // =====================================================
+  // ENSURE CONVERSATION
+  // =====================================================
+
+  async function ensureConversation(
+    question
+  ) {
+
+    if (
+      activeConversationId
+    ) {
+
+      return activeConversationId;
+    }
+
+
+    if (
+      !currentUser?.id
+    ) {
+
+      throw new Error(
+        "Authenticated user is not available."
+      );
+    }
+
+
+    const title =
+      createConversationTitle(
+        question
+      );
+
+
+    const newConversation =
+      await createConversation(
+        currentUser,
+        title
+      );
+
+
+    if (
+      !newConversation?.id
+    ) {
+
+      throw new Error(
+        "Backend did not return a conversation ID."
+      );
+    }
+
+
+    setActiveConversationId(
+      newConversation.id
+    );
+
+
+    setConversations(
+      (previous) => [
+        newConversation,
+
+        ...previous.filter(
+          (conversation) =>
+            conversation.id !==
+            newConversation.id
+        ),
+      ]
+    );
+
+
+    return newConversation.id;
+  }
+
+
+  // =====================================================
+  // SELECT PRIMARY CUSTOMER
+  // =====================================================
+
+  async function handleCustomerSelect(
+    customer
+  ) {
+
+    console.log(
+      "Selected Sales customer:",
+      customer
+    );
+
+
+    // ===================================================
+    // CUSTOMER
+    // ===================================================
+
+    setSelectedCustomer(
+      customer
+    );
+
+
+    setCustomerSnapshot(
+      null
+    );
+
+
+    setCustomerSnapshotError(
+      null
+    );
+
+
+    // ===================================================
+    // IMPORTANT
+    //
+    // Visit belongs to exactly one customer.
+    //
+    // Changing customer must clear previous visit.
+    // ===================================================
+
+    setActiveVisit(
+      null
+    );
+
+
+    setStartVisitError(
+      null
+    );
+
+
+    setIsStartingVisit(
+      false
+    );
+
+
+    // ===================================================
+    // CLEAR PREVIOUS RECORDING CONTEXT
+    // ===================================================
+
+    setSalesRecording(
+      null
+    );
+
+
+    setSavedRecording(
+      null
+    );
+
+
+    setTranscription(
+      null
+    );
+
+
+    setConversationHighlights(
+      []
+    );
+
+
+    setRecordingProcessingError(
+      null
+    );
+
+
+    // ===================================================
+    // CUSTOMER CLEARED
+    // ===================================================
+
+    if (
+      !customer?.bmd_code
+    ) {
+
+      return;
+    }
+
+
+    // ===================================================
+    // LOAD BUSINESS SNAPSHOT
+    // ===================================================
+
+    try {
+
+      setIsLoadingCustomerSnapshot(
+        true
+      );
+
+
+      console.log(
+        "Loading business snapshot for BMD:",
+        customer.bmd_code
+      );
+
+
+      const snapshot =
+        await getSalesCustomerSnapshot({
+          bmdCode:
+            customer.bmd_code,
+        });
+
+
+      console.log(
+        "Sales customer snapshot:",
+        snapshot
+      );
+
+
+      setCustomerSnapshot(
+        snapshot
+      );
+
+
+    } catch (error) {
+
+      console.error(
+        "Unable to load Sales customer snapshot:",
+        error
+      );
+
+
+      setCustomerSnapshotError(
+        error instanceof Error
+          ? error.message
+          : "Unable to load customer business snapshot."
+      );
+
+
+    } finally {
+
+      setIsLoadingCustomerSnapshot(
+        false
+      );
+    }
+  }
+
+
+  // =====================================================
+  // START SALES VISIT
+  // =====================================================
+
+  async function handleStartVisit() {
+
+    // ===================================================
+    // CUSTOMER REQUIRED
+    // ===================================================
+
+    if (
+      !selectedCustomer?.bmd_code
+    ) {
+
+      setStartVisitError(
+        "Please select a primary customer first."
+      );
+
+
+      return;
+    }
+
+
+    // ===================================================
+    // USER REQUIRED
+    // ===================================================
+
+    if (
+      !currentUser?.id
+    ) {
+
+      setStartVisitError(
+        "Authenticated user could not be identified."
+      );
+
+
+      return;
+    }
+
+
+    // ===================================================
+    // VISIT ALREADY ACTIVE
+    // ===================================================
+
+    if (
+      activeVisit?.visit_id
+    ) {
+
+      return;
+    }
+
+
+    try {
+
+      setIsStartingVisit(
+        true
+      );
+
+
+      setStartVisitError(
+        null
+      );
+
+
+      console.log(
+        "Starting Sales visit:",
+        {
+          bmdCode:
+            selectedCustomer.bmd_code,
+
+          bmdName:
+            selectedCustomer.bmd_name,
+
+          userId:
+            currentUser.id,
+
+          conversationId:
+            activeConversationId,
+        }
+      );
+
+
+      const visit =
+        await startSalesVisit({
+          bmdCode:
+            selectedCustomer.bmd_code,
+
+          userId:
+            currentUser.id,
+
+          conversationId:
+            activeConversationId,
+        });
+
+
+      console.log(
+        "Sales visit started:",
+        visit
+      );
+
+
+      if (
+        !visit?.visit_id
+      ) {
+
+        throw new Error(
+          "Visit was started but visit ID was not returned."
+        );
+      }
+
+
+      setActiveVisit(
+        visit
+      );
+
+
+    } catch (error) {
+
+      console.error(
+        "Unable to start Sales visit:",
+        error
+      );
+
+
+      setStartVisitError(
+        error instanceof Error
+          ? error.message
+          : "Unable to start customer visit."
+      );
+
+
+    } finally {
+
+      setIsStartingVisit(
+        false
+      );
+    }
+  }
+
+
+  // =====================================================
+  // NORMAL SALES QUESTION
+  // =====================================================
+
+  async function handleQuestionSubmit(
+    question
+  ) {
+
+    const cleanQuestion =
+      question?.trim();
+
+
+    if (
+      !cleanQuestion ||
+      isLoading
+    ) {
+
+      return;
+    }
+
+
+    setResponseMode(
+      "text"
+    );
+
+
+    await handleSend(
+      cleanQuestion
+    );
+  }
+
+
+  // =====================================================
+  // RESPONSE MODE
+  // =====================================================
+
+  function handleResponseModeSelect(
+    mode
+  ) {
+
+    setResponseMode(
+      mode
+    );
+
+
+    console.log(
+      "Sales response mode:",
+      mode
+    );
+  }
+
+
+  // =====================================================
+  // SEND CHAT
+  // =====================================================
+
+  async function handleSend(
+    question
+  ) {
+
+    const cleanQuestion =
+      question?.trim();
+
+
+    if (
+      !cleanQuestion ||
+      isLoading
+    ) {
+
+      return;
+    }
+
+
+    if (
+      !currentUser?.id
+    ) {
+
+      alert(
+        "Unable to identify the authenticated user."
+      );
+
+
+      return;
+    }
+
+
+    setIsLoading(
+      true
+    );
+
+
+    let conversationId =
+      null;
+
+
+    try {
+
+      conversationId =
+        await ensureConversation(
+          cleanQuestion
+        );
+
+
+    } catch (error) {
+
+      setIsLoading(
+        false
+      );
+
+
+      console.error(
+        "Unable to create Sales conversation:",
+        error
+      );
+
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to create conversation."
+      );
+
+
+      return;
+    }
+
+
+    // ===================================================
+    // USER MESSAGE
+    // ===================================================
+
+    const userMessage = {
+      id:
+        crypto.randomUUID(),
+
+      role:
+        "user",
+
+      text:
+        cleanQuestion,
+    };
+
+
+    const loadingId =
+      crypto.randomUUID();
+
+
+    setMessages(
+      (previous) => [
+        ...previous,
+
+        userMessage,
+
+        {
+          id:
+            loadingId,
+
+          role:
+            "ai",
+
+          engine:
+            "PLANNER",
+
+          text:
+            "Processing your request...",
+
+          isLoading:
+            true,
+        },
+      ]
+    );
+
+
+    try {
+
+      const response =
+        await sendMessageStream(
+          cleanQuestion,
+          conversationId,
+          () => {
+
+            setMessages(
+              (previous) =>
+                previous.map(
+                  (message) =>
+                    message.id ===
+                    loadingId
+                      ? {
+                          ...message,
+
+                          text:
+                            "Processing your request...",
+                        }
+                      : message
+                )
+            );
+          }
+        );
+
+
+      const rows =
+        Array.isArray(
+          response?.rows
+        )
+          ? response.rows
+          : (
+              Array.isArray(
+                response?.table
+              )
+                ? response.table
+                : []
+            );
+
+
+      const responseEngine =
+        String(
+          response?.engine ||
+          (
+            rows.length > 0 ||
+            response?.generated_sql
+              ? "SQL"
+              : "CHAT"
+          )
+        ).toUpperCase();
+
+
+      const answer =
+        response?.answer ||
+        response?.summary ||
+        response?.executive_summary ||
+        (
+          responseEngine ===
+            "CHAT"
+            ? "No response was generated."
+            : "The query completed successfully."
+        );
+
+
+      const assistantMessage = {
+        id:
+          crypto.randomUUID(),
+
+        role:
+          "ai",
+
+        engine:
+          responseEngine,
+
+        text:
+          answer,
+
+        answer,
+
+        content:
+          answer,
+
+        responseMode:
+          "text",
+
+        executiveSummary:
+          response?.executive_summary ||
+          null,
+
+        keyInsights:
+          Array.isArray(
+            response?.key_insights
+          )
+            ? response.key_insights
+            : [],
+
+        visual:
+          (
+            response?.visual &&
+            typeof response.visual ===
+              "object"
+          )
+            ? response.visual
+            : null,
+
+        suggestions:
+          Array.isArray(
+            response?.suggestions
+          )
+            ? response.suggestions
+            : (
+                Array.isArray(
+                  response?.suggested_questions
+                )
+                  ? response.suggested_questions
+                  : []
+              ),
+
+        rows,
+
+        generatedQuery:
+          response?.generated_sql ||
+          response?.executed_sql ||
+          null,
+
+        executedQuery:
+          response?.executed_sql ||
+          null,
+
+        queryType:
+          responseEngine,
+
+        source:
+          response?.source ||
+          (
+            responseEngine ===
+              "CHAT"
+              ? "GPT"
+              : "Azure SQL"
+          ),
+
+        rowCount:
+          response?.row_count ??
+          rows.length,
+
+        executionTime:
+          response?.execution_time_ms ??
+          response?.timings?.request_total_ms ??
+          null,
+
+        timings:
+          response?.timings ||
+          null,
+
+        status:
+          response?.status ||
+          "success",
+
+        errorMessage:
+          response?.message ||
+          null,
+
+        requestPlan:
+          response?.request_plan ||
+          null,
+      };
+
+
+      setMessages(
+        (previous) =>
+          previous.map(
+            (message) =>
+              message.id ===
+              loadingId
+                ? assistantMessage
+                : message
+          )
+      );
+
+
+      await loadConversationHistory();
+
+
+    } catch (error) {
+
+      console.error(
+        "Unable to process Sales Agent request:",
+        error
+      );
+
+
+      setMessages(
+        (previous) =>
+          previous.map(
+            (message) =>
+              message.id ===
+              loadingId
+                ? {
+                    id:
+                      crypto.randomUUID(),
+
+                    role:
+                      "ai",
+
+                    engine:
+                      "SYSTEM",
+
+                    text:
+                      error instanceof Error
+                        ? error.message
+                        : "Unable to process request.",
+
+                    status:
+                      "error",
+
+                    source:
+                      "System",
+
+                    rows:
+                      [],
+
+                    keyInsights:
+                      [],
+
+                    suggestions:
+                      [],
+
+                    visual:
+                      null,
+                  }
+                : message
+          )
+      );
+
+
+    } finally {
+
+      setIsLoading(
+        false
+      );
+    }
+  }
+
+
+  // =====================================================
+  // RECORDING READY
+  // =====================================================
+
+  function handleRecordingReady(
+    audioBlob
+  ) {
+
+    // ===================================================
+    // RECORDING SHOULD ONLY EXIST DURING ACTIVE VISIT
+    // ===================================================
+
+    if (
+      audioBlob &&
+      !activeVisit?.visit_id
+    ) {
+
+      console.error(
+        "Recording created without an active Sales visit."
+      );
+
+
+      setSalesRecording(
+        null
+      );
+
+
+      setRecordingProcessingError(
+        "Start the customer visit before recording."
+      );
+
+
+      return;
+    }
+
+
+    setSalesRecording(
+      audioBlob
+    );
+
+
+    if (!audioBlob) {
+
+      setSavedRecording(
+        null
+      );
+
+
+      setTranscription(
+        null
+      );
+
+
+      setConversationHighlights(
+        []
+      );
+
+
+      setRecordingProcessingError(
+        null
+      );
+
+
+      return;
+    }
+
+
+    console.log(
+      "Sales recording ready:",
+      {
+        size:
+          audioBlob.size,
+
+        type:
+          audioBlob.type,
+
+        visitId:
+          activeVisit?.visit_id,
+
+        bmdCode:
+          selectedCustomer?.bmd_code,
+      }
+    );
+  }
+
+
+  // =====================================================
+  // SAVE + TRANSCRIBE + SUMMARIZE
+  // =====================================================
+
+  async function handleSaveRecording() {
+
+    // ===================================================
+    // CUSTOMER REQUIRED
+    // ===================================================
+
+    if (
+      !selectedCustomer?.bmd_code
+    ) {
+
+      alert(
+        "Please select a primary customer before recording a conversation."
+      );
+
+
+      return;
+    }
+
+
+    // ===================================================
+    // ACTIVE VISIT REQUIRED
+    // ===================================================
+
+    if (
+      !activeVisit?.visit_id
+    ) {
+
+      alert(
+        "Please start the customer visit before saving the recording."
+      );
+
+
+      return;
+    }
+
+
+    // ===================================================
+    // RECORDING REQUIRED
+    // ===================================================
+
+    if (
+      !salesRecording
+    ) {
+
+      alert(
+        "Please record a customer conversation first."
+      );
+
+
+      return;
+    }
+
+
+    if (
+      isSavingRecording ||
+      isTranscribing ||
+      isSummarizing
+    ) {
+
+      return;
+    }
+
+
+    setRecordingProcessingError(
+      null
+    );
+
+
+    setTranscription(
+      null
+    );
+
+
+    setConversationHighlights(
+      []
+    );
+
+
+    try {
+
+      // =================================================
+      // STEP 1
+      // SAVE RECORDING TO AZURE BLOB
+      // =================================================
+
+      setIsSavingRecording(
+        true
+      );
+
+
+      console.log(
+        "STEP 1: Saving Sales recording...",
+        {
+          visitId:
+            activeVisit.visit_id,
+
+          bmdCode:
+            selectedCustomer.bmd_code,
+
+          bmdName:
+            selectedCustomer.bmd_name,
+        }
+      );
+
+
+      /*
+       * IMPORTANT:
+       *
+       * We are still using the existing recording API
+       * contract here.
+       *
+       * In the next backend step we will modify
+       * uploadSalesRecording() to send visit_id and
+       * persist it into ai_app.artifact.
+       */
+
+      const saved =
+        await uploadSalesRecording({
+          audioBlob:
+            salesRecording,
+
+          conversationId:
+            activeConversationId,
+
+          visitId:
+            activeVisit.visit_id,
+
+          bmdCode:
+            selectedCustomer.bmd_code,
+        });
+
+
+      console.log(
+        "STEP 1 completed:",
+        saved
+      );
+
+
+      setSavedRecording(
+        saved
+      );
+
+
+      setIsSavingRecording(
+        false
+      );
+
+
+      if (
+        !saved?.blob_name
+      ) {
+
+        throw new Error(
+          "Recording was saved but Blob name was not returned."
+        );
+      }
+
+
+      // =================================================
+      // STEP 2
+      // AZURE SPEECH TRANSCRIPTION
+      // =================================================
+
+      setIsTranscribing(
+        true
+      );
+
+
+      console.log(
+        "STEP 2: Transcribing recording...",
+        {
+          visitId:
+            activeVisit.visit_id,
+
+          blobName:
+            saved.blob_name,
+        }
+      );
+
+
+      const transcribed =
+        await transcribeSalesRecording({
+          blobName:
+            saved.blob_name,
+
+          artifactId:
+            saved.artifact_id,
+
+          visitId:
+            activeVisit.visit_id,
+
+          locale:
+            "en-IN",
+        });
+
+
+      console.log(
+        "STEP 2 completed:",
+        transcribed
+      );
+
+
+      setTranscription(
+        transcribed
+      );
+
+
+      setIsTranscribing(
+        false
+      );
+
+
+      const transcript =
+        String(
+          transcribed?.transcript ||
+          ""
+        ).trim();
+
+
+      if (
+        !transcript
+      ) {
+
+        throw new Error(
+          "Speech transcription completed but no transcript was generated."
+        );
+      }
+
+
+      // =================================================
+      // STEP 3
+      // GENERATE CONVERSATION HIGHLIGHTS
+      // =================================================
+
+      setIsSummarizing(
+        true
+      );
+
+
+      console.log(
+        "STEP 3: Generating conversation highlights...",
+        {
+          visitId:
+            activeVisit.visit_id,
+        }
+      );
+
+
+      const summary =
+        await summarizeSalesTranscript({
+          transcript,
+        });
+
+
+      console.log(
+        "STEP 3 completed:",
+        summary
+      );
+
+
+      const highlights =
+        Array.isArray(
+          summary?.highlights
+        )
+          ? summary.highlights
+          : [];
+
+
+      if (
+        highlights.length === 0
+      ) {
+
+        throw new Error(
+          "Summary completed but no highlights were returned."
+        );
+      }
+
+
+      setConversationHighlights(
+        highlights
+      );
+
+
+      // -------------------------------------------------
+      // Recording is safely saved in Blob.
+      // Remove original browser Blob from memory.
+      // -------------------------------------------------
+
+      setSalesRecording(
+        null
+      );
+
+
+    } catch (error) {
+
+      console.error(
+        "Sales recording processing failed:",
+        error
+      );
+
+
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to process recording.";
+
+
+      setRecordingProcessingError(
+        message
+      );
+
+
+    } finally {
+
+      setIsSavingRecording(
+        false
+      );
+
+
+      setIsTranscribing(
+        false
+      );
+
+
+      setIsSummarizing(
+        false
+      );
+    }
+  }
+
+
+  // =====================================================
+  // NEW CHAT
+  // =====================================================
+
+  function handleNewChat() {
+
+    if (
+      isLoading ||
+      isStartingVisit ||
+      isSavingRecording ||
+      isTranscribing ||
+      isSummarizing
+    ) {
+
+      return;
+    }
+
+
+    // ===================================================
+    // CONVERSATION
+    // ===================================================
+
+    setActiveConversationId(
+      null
+    );
+
+
+    setMessages([
+      salesInitialMessage,
+    ]);
+
+
+    setResponseMode(
+      "text"
+    );
+
+
+    // ===================================================
+    // CUSTOMER
+    // ===================================================
+
+    setSelectedCustomer(
+      null
+    );
+
+
+    setCustomerSnapshot(
+      null
+    );
+
+
+    setCustomerSnapshotError(
+      null
+    );
+
+
+    setIsLoadingCustomerSnapshot(
+      false
+    );
+
+
+    // ===================================================
+    // VISIT
+    // ===================================================
+
+    setActiveVisit(
+      null
+    );
+
+
+    setIsStartingVisit(
+      false
+    );
+
+
+    setStartVisitError(
+      null
+    );
+
+
+    // ===================================================
+    // RECORDING
+    // ===================================================
+
+    setSalesRecording(
+      null
+    );
+
+
+    setSavedRecording(
+      null
+    );
+
+
+    setTranscription(
+      null
+    );
+
+
+    setConversationHighlights(
+      []
+    );
+
+
+    setRecordingProcessingError(
+      null
+    );
+  }
+
+
+  // =====================================================
+  // CONVERSATION HISTORY CLICK
+  // =====================================================
+
+  async function handleHistoryClick(
+    conversationId
+  ) {
+
+    if (
+      isLoading ||
+      isStartingVisit ||
+      isSavingRecording ||
+      isTranscribing ||
+      isSummarizing ||
+      !conversationId
+    ) {
+
+      return;
+    }
+
+
+    setIsLoading(
+      true
+    );
+
+
+    try {
+
+      const history =
+        await getConversationMessages(
+          conversationId
+        );
+
+
+      const formattedMessages =
+        Array.isArray(
+          history
+        )
+          ? history.map(
+              normalizeHistoryMessage
+            )
+          : [];
+
+
+      setActiveConversationId(
+        conversationId
+      );
+
+
+      setMessages(
+        formattedMessages.length > 0
+          ? formattedMessages
+          : [
+              salesInitialMessage,
+            ]
+      );
+
+
+      // -------------------------------------------------
+      // IMPORTANT:
+      //
+      // We don't automatically reconstruct customer/visit
+      // context from history yet.
+      //
+      // That will come when visit retrieval is implemented.
+      // -------------------------------------------------
+
+      setSelectedCustomer(
+        null
+      );
+
+
+      setCustomerSnapshot(
+        null
+      );
+
+
+      setActiveVisit(
+        null
+      );
+
+
+    } catch (error) {
+
+      console.error(
+        "Unable to load Sales conversation:",
+        error
+      );
+
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to load conversation history."
+      );
+
+
+    } finally {
+
+      setIsLoading(
+        false
+      );
+    }
+  }
+
+
+  // =====================================================
+  // USER LOADING
+  // =====================================================
+
+  if (
+    userLoading
+  ) {
+
+    return (
+
+      <div
+        className=
+          "sales-page-status"
+      >
+
+        Loading your Sales Intelligence Agent...
+
+      </div>
+    );
+  }
+
+
+  // =====================================================
+  // USER ERROR
+  // =====================================================
+
+  if (
+    userError ||
+    !currentUser
+  ) {
+
+    return (
+
+      <div
+        className=
+          "sales-page-status"
+      >
+
+        <strong>
+          Unable to load your user profile.
+        </strong>
+
+
+        <span>
+          {userError}
+        </span>
+
+      </div>
+    );
+  }
+
+
+  // =====================================================
+  // MAIN SALES SCREEN
+  // =====================================================
+
+  return (
+
+    <Layout
+      user={
+        currentUser
+      }
+
+      chatHistory={
+        conversations
+      }
+
+      activeConversationId={
+        activeConversationId
+      }
+
+      onHistoryClick={
+        handleHistoryClick
+      }
+
+      onNewChat={
+        handleNewChat
+      }
+
+      headerSubtitle=
+        "Sales Intelligence Agent"
+    >
+
+      <div
+        className=
+          "chat-container sales-chat-container"
+      >
+
+        {/* ===============================================
+            CHAT WINDOW
+            =============================================== */}
+
+        <ChatWindow
+          messages={
+            messages
+          }
+
+          onSuggestionClick={
+            handleQuestionSubmit
+          }
+        />
+
+
+        <div
+          className=
+            "composer-section"
+        >
+
+          {/* =============================================
+              PRIMARY CUSTOMER
+              ============================================= */}
+
+          <SalesCustomerSelector
+            selectedCustomer={
+              selectedCustomer
+            }
+
+            onCustomerSelect={
+              handleCustomerSelect
+            }
+
+            disabled={
+              isLoading ||
+              isStartingVisit ||
+              isSavingRecording ||
+              isTranscribing ||
+              isSummarizing
+            }
+          />
+
+
+          {/* =============================================
+              BUSINESS SNAPSHOT
+              ============================================= */}
+
+          <SalesBusinessSnapshot
+            snapshot={
+              customerSnapshot
+            }
+
+            loading={
+              isLoadingCustomerSnapshot
+            }
+
+            error={
+              customerSnapshotError
+            }
+          />
+
+
+          {/* =============================================
+              START VISIT
+              ============================================= */}
+
+          <SalesVisitPanel
+            selectedCustomer={
+              selectedCustomer
+            }
+
+            activeVisit={
+              activeVisit
+            }
+
+            isStartingVisit={
+              isStartingVisit
+            }
+
+            startVisitError={
+              startVisitError
+            }
+
+            onStartVisit={
+              handleStartVisit
+            }
+
+            disabled={
+              isLoadingCustomerSnapshot ||
+              isLoading ||
+              isSavingRecording ||
+              isTranscribing ||
+              isSummarizing
+            }
+          />
+
+
+          {/* =============================================
+              NO CUSTOMER MESSAGE
+              ============================================= */}
+
+          {!selectedCustomer && (
+
+            <div
+              className=
+                "sales-processing-status"
+            >
+
+              Select a primary customer to begin.
+
+            </div>
+
+          )}
+
+
+          {/* =============================================
+              CUSTOMER SELECTED BUT VISIT NOT STARTED
+              ============================================= */}
+
+          {selectedCustomer &&
+           !activeVisit?.visit_id && (
+
+            <div
+              className=
+                "sales-processing-status"
+            >
+
+              Start the customer visit before recording the conversation.
+
+            </div>
+
+          )}
+
+
+          {/* =============================================
+              RECORDING PANEL
+
+              REQUIREMENTS:
+
+              1. Customer selected
+              2. Snapshot finished loading
+              3. Visit successfully created
+              ============================================= */}
+
+          <SalesRecordingPanel
+            disabled={
+              !selectedCustomer ||
+              !activeVisit?.visit_id ||
+              isLoading ||
+              isLoadingCustomerSnapshot ||
+              isStartingVisit ||
+              isSavingRecording ||
+              isTranscribing ||
+              isSummarizing
+            }
+
+            onRecordingReady={
+              handleRecordingReady
+            }
+
+            onSaveRecording={
+              handleSaveRecording
+            }
+
+            isSaving={
+              isSavingRecording
+            }
+
+            isSaved={
+              Boolean(
+                savedRecording
+              )
+            }
+          />
+
+
+          {/* =============================================
+              RECORDING PROCESS STATUS
+              ============================================= */}
+
+          {isSavingRecording && (
+
+            <div
+              className=
+                "sales-processing-status"
+            >
+
+              Saving recording...
+
+            </div>
+
+          )}
+
+
+          {isTranscribing && (
+
+            <div
+              className=
+                "sales-processing-status"
+            >
+
+              Transcribing conversation...
+
+            </div>
+
+          )}
+
+
+          {isSummarizing && (
+
+            <div
+              className=
+                "sales-processing-status"
+            >
+
+              Generating conversation highlights...
+
+            </div>
+
+          )}
+
+
+          {/* =============================================
+              RECORDING ERROR
+              ============================================= */}
+
+          {recordingProcessingError && (
+
+            <div
+              className=
+                "sales-recording-error"
+            >
+
+              {recordingProcessingError}
+
+            </div>
+
+          )}
+
+
+          {/* =============================================
+              CONVERSATION HIGHLIGHTS
+              ============================================= */}
+
+          {conversationHighlights.length >
+            0 && (
+
+            <div
+              className=
+                "sales-conversation-summary"
+            >
+
+              <div
+                className=
+                  "sales-conversation-summary-header"
+              >
+
+                <strong>
+                  Conversation Highlights
+                </strong>
+
+              </div>
+
+
+              <ul>
+
+                {conversationHighlights.map(
+                  (
+                    highlight,
+                    index
+                  ) => (
+
+                    <li
+                      key={
+                        `${index}-${highlight}`
+                      }
+                    >
+
+                      {highlight}
+
+                    </li>
+
+                  )
+                )}
+
+              </ul>
+
+            </div>
+
+          )}
+
+
+          {/* =============================================
+              TRANSCRIPT
+              ============================================= */}
+
+          {transcription?.transcript && (
+
+            <details
+              className=
+                "sales-transcript-panel"
+            >
+
+              <summary>
+                View Transcript
+              </summary>
+
+
+              <p>
+                {transcription.transcript}
+              </p>
+
+            </details>
+
+          )}
+
+
+          {/* =============================================
+              RESPONSE OPTIONS
+              ============================================= */}
+
+          <SalesResponseOptions
+            selectedMode={
+              responseMode
+            }
+
+            onSelect={
+              handleResponseModeSelect
+            }
+
+            disabled={
+              isLoading ||
+              isStartingVisit ||
+              isSavingRecording ||
+              isTranscribing ||
+              isSummarizing
+            }
+          />
+
+
+          {/* =============================================
+              CHAT INPUT
+              ============================================= */}
+
+          <ChatInput
+            onSend={
+              handleQuestionSubmit
+            }
+
+            disabled={
+              isLoading
+            }
+
+            placeholder=
+              "Ask about a customer, sales trend or customer visit..."
+          />
+
+        </div>
+
+
+        <div
+          className=
+            "chat-footer"
+        >
+
+          AI-generated sales insights may require business validation.
+
+        </div>
+
+      </div>
+
+    </Layout>
+  );
+}
+
+
+export default SalesApp;
