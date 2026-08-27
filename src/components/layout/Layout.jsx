@@ -8,12 +8,18 @@ function Layout({
   activeConversationId,
   onHistoryClick,
   onNewChat,
+  headerSubtitle = "Executive Agent",
 }) {
   return (
     <div className="app">
-      <Header user={user} />
+
+      <Header
+        user={user}
+        subtitle={headerSubtitle}
+      />
 
       <main className="layout">
+
         <Sidebar
           chatHistory={chatHistory}
           activeConversationId={activeConversationId}
@@ -24,7 +30,9 @@ function Layout({
         <section className="chat-area">
           {children}
         </section>
+
       </main>
+
     </div>
   );
 }
