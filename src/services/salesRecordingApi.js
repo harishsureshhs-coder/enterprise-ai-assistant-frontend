@@ -1,7 +1,10 @@
-const API_URL =
-  import.meta.env.VITE_API_URL ||
-  "https://mabdo-dtc3gkb3dhctg9hw.eastus-01.azurewebsites.net";
+// const API_URL =
+//   import.meta.env.VITE_API_URL ||
+//   "https://exesalesdev-fdfkfpb9fmabcadg.eastus-01.azurewebsites.net";
 
+import {
+  API_URL,
+} from "../config/apiConfig";
 
 const UPLOAD_TIMEOUT_MS =
   300000;
