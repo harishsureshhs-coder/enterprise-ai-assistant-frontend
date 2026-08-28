@@ -1,55 +1,179 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
+# =========================================================
+# DEV FRONTEND DEPLOYMENT
+#
+# Branch:
+# develop
+#
+# Azure App Service:
+# execsalesfrontdev
+#
+# Screens:
+# /       -> Executive Agent
+# /sales  -> Sales Intelligence Agent
+# =========================================================
 
-name: Build and deploy Node.js app to Azure Web App - execsalesfrontdev
+name: Build and deploy frontend to Azure Web App - execsalesfrontdev
+
+
+# =========================================================
+# TRIGGER
+# =========================================================
 
 on:
   push:
     branches:
       - develop
+
   workflow_dispatch:
 
+
+# =========================================================
+# JOBS
+# =========================================================
+
 jobs:
+
+  # =======================================================
+  # BUILD
+  # =======================================================
+
   build:
+
     runs-on: ubuntu-latest
+
     permissions:
-      contents: read #This is required for actions/checkout
+      contents: read
+
 
     steps:
-      - uses: actions/checkout@v4
 
-      - name: Set up Node.js version
-        uses: actions/setup-node@v3
+      # ---------------------------------------------------
+      # CHECKOUT SOURCE CODE
+      # ---------------------------------------------------
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+
+      # ---------------------------------------------------
+      # NODE
+      # ---------------------------------------------------
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+
         with:
-          node-version: '24.x'
+          node-version: "24.x"
+          cache: "npm"
 
-      - name: npm install, build, and test
-        run: |
-          npm install
-          npm run build --if-present
-          npm run test --if-present
 
-      - name: Upload artifact for deployment job
+      # ---------------------------------------------------
+      # INSTALL DEPENDENCIES
+      # ---------------------------------------------------
+
+      - name: Install dependencies
+        run: npm ci
+
+
+      # ---------------------------------------------------
+      # BUILD VITE FRONTEND
+      #
+      # IMPORTANT:
+      #
+      # VITE_* values are injected at BUILD TIME.
+      #
+      # DEV authentication temporarily uses local mode
+      # until Entra user/group access is ready.
+      # ---------------------------------------------------
+
+      - name: Build frontend
+
+        env:
+
+          VITE_API_URL: ${{ secrets.VITE_API_URL_DEV }}
+
+          VITE_AUTH_MODE: local
+
+        run: npm run build
+
+
+      # ---------------------------------------------------
+      # OPTIONAL TESTS
+      # ---------------------------------------------------
+
+      - name: Run tests
+        run: npm run test --if-present
+
+
+      # ---------------------------------------------------
+      # UPLOAD ONLY PRODUCTION BUILD
+      #
+      # Do NOT upload:
+      #
+      # src/
+      # public/
+      # node_modules/
+      # package.json
+      #
+      # Azure only needs dist/.
+      # ---------------------------------------------------
+
+      - name: Upload frontend build artifact
         uses: actions/upload-artifact@v4
+
         with:
-          name: node-app
-          path: .
+
+          name: frontend-dist
+
+          path: dist
+
+          if-no-files-found: error
+
+
+  # =======================================================
+  # DEPLOY
+  # =======================================================
 
   deploy:
+
     runs-on: ubuntu-latest
-    needs: build
-    
+
+    needs:
+      - build
+
+
     steps:
-      - name: Download artifact from build job
+
+      # ---------------------------------------------------
+      # DOWNLOAD BUILT FRONTEND
+      # ---------------------------------------------------
+
+      - name: Download frontend build artifact
         uses: actions/download-artifact@v4
+
         with:
-          name: node-app
-      
-      - name: 'Deploy to Azure Web App'
+
+          name: frontend-dist
+
+          path: dist
+
+
+      # ---------------------------------------------------
+      # DEPLOY DIST TO AZURE
+      # ---------------------------------------------------
+
+      - name: Deploy to Azure Web App
+
         id: deploy-to-webapp
+
         uses: azure/webapps-deploy@v3
+
         with:
-          app-name: 'execsalesfrontdev'
-          slot-name: 'Production'
-          package: .
+
+          app-name: "execsalesfrontdev"
+
+          slot-name: "Production"
+
+          package: ./dist
+
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_71CAE2724EF84541997042EF5D5F2170 }}
