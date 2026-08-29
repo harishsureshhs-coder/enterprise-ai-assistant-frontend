@@ -92,7 +92,7 @@ jobs:
 
           VITE_API_URL: ${{ secrets.VITE_API_URL_DEV }}
 
-          VITE_AUTH_MODE: local
+          VITE_AUTH_MODE: entra
 
         run: npm run build
 
