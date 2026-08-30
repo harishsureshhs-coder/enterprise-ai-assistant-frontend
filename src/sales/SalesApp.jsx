@@ -836,11 +836,6 @@ function SalesApp() {
         "Unable to load Sales conversations:",
         error
       );
-
-
-      setConversations(
-        []
-      );
     }
   }
 

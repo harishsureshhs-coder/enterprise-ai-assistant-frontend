@@ -815,12 +815,7 @@ function App() {
       console.error(
         "Unable to load Executive conversation history:",
         error
-      );
-
-
-      setConversations(
-        []
-      );
+      );      
     }
   }
 
