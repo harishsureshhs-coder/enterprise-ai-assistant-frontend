@@ -6,14 +6,13 @@ import {
 import "./App.css";
 
 import Layout from "./components/layout/Layout";
+import ChatWindow from "./components/chat/ChatWindow";
+import ChatInput from "./components/ChatInput";
+import SuggestedQuestions from "./components/SuggestedQuestions";
 
 import {
   getCurrentUser,
 } from "./services/authService";
-
-import ChatWindow from "./components/chat/ChatWindow";
-import ChatInput from "./components/ChatInput";
-import SuggestedQuestions from "./components/SuggestedQuestions";
 
 import {
   sendMessageStream,
@@ -26,27 +25,51 @@ import {
 } from "./services/conversationApi";
 
 
+// =========================================================
+// AGENT
+// =========================================================
+
+const AGENT_ID =
+  "EXECUTIVE";
+
+
+// =========================================================
+// INITIAL MESSAGE
+// =========================================================
+
 const initialMessage = {
-  id: "welcome",
+  id:
+    "welcome",
 
-  role: "ai",
+  role:
+    "ai",
 
-  engine: "CHAT",
+  engine:
+    "CHAT",
 
   text:
     "Hi! I'm your MA AI Assistant. How can I help you today?",
 
-  source: "GPT",
+  source:
+    "GPT",
 
-  status: "success",
+  status:
+    "success",
 
-  rows: [],
+  rows:
+    [],
 
-  keyInsights: [],
+  keyInsights:
+    [],
 
-  suggestions: [],
+  suggestions:
+    [],
 };
 
+
+// =========================================================
+// SUGGESTED QUESTIONS
+// =========================================================
 
 const suggestedQuestions = [
   "Explain Azure Data Factory",
@@ -57,16 +80,26 @@ const suggestedQuestions = [
 ];
 
 
+// =========================================================
+// CREATE CONVERSATION TITLE
+// =========================================================
+
 function createConversationTitle(
   question
 ) {
-  const maximumLength = 32;
+
+  const maximumLength =
+    32;
+
 
   if (
-    question.length <= maximumLength
+    question.length <=
+    maximumLength
   ) {
+
     return question;
   }
+
 
   return (
     `${question.slice(
@@ -77,69 +110,125 @@ function createConversationTitle(
 }
 
 
+// =========================================================
+// NORMALIZE ARRAY
+// =========================================================
+
 function normalizeArrayValue(
   value
 ) {
-  if (Array.isArray(value)) {
+
+  if (
+    Array.isArray(
+      value
+    )
+  ) {
+
     return value;
   }
 
-  if (typeof value === "string") {
-    try {
-      const parsedValue =
-        JSON.parse(value);
 
-      return Array.isArray(parsedValue)
+  if (
+    typeof value ===
+    "string"
+  ) {
+
+    try {
+
+      const parsedValue =
+        JSON.parse(
+          value
+        );
+
+
+      return Array.isArray(
+        parsedValue
+      )
         ? parsedValue
         : [];
+
+
     } catch {
+
       return [];
     }
   }
+
 
   return [];
 }
 
 
+// =========================================================
+// NORMALIZE OBJECT
+// =========================================================
+
 function normalizeObjectValue(
   value
 ) {
+
   if (
     value &&
-    typeof value === "object" &&
-    !Array.isArray(value)
+    typeof value ===
+      "object" &&
+    !Array.isArray(
+      value
+    )
   ) {
+
     return value;
   }
 
-  if (typeof value === "string") {
+
+  if (
+    typeof value ===
+    "string"
+  ) {
+
     try {
+
       const parsedValue =
-        JSON.parse(value);
+        JSON.parse(
+          value
+        );
+
 
       return (
         parsedValue &&
-        typeof parsedValue === "object" &&
-        !Array.isArray(parsedValue)
+        typeof parsedValue ===
+          "object" &&
+        !Array.isArray(
+          parsedValue
+        )
       )
         ? parsedValue
         : null;
+
+
     } catch {
+
       return null;
     }
   }
+
 
   return null;
 }
 
 
+// =========================================================
+// RESPONSE PAYLOAD
+// =========================================================
+
 function normalizeResponsePayload(
   message
 ) {
+
   const rawPayload =
     message.ResponsePayload ??
     message.response_payload ??
     null;
+
 
   return normalizeObjectValue(
     rawPayload
@@ -147,61 +236,90 @@ function normalizeResponsePayload(
 }
 
 
+// =========================================================
+// ENGINE
+// =========================================================
+
 function normalizeEngine(
   message,
   responsePayload,
   role
 ) {
+
   const explicitEngine =
     responsePayload?.engine ??
     message.Engine ??
     message.engine ??
     null;
 
-  if (explicitEngine) {
+
+  if (
+    explicitEngine
+  ) {
+
     return String(
       explicitEngine
     ).toUpperCase();
   }
+
 
   const queryType =
     message.QueryType ??
     message.query_type ??
     null;
 
+
   if (
-    String(queryType || "")
-      .toUpperCase() === "CHAT"
+    String(
+      queryType || ""
+    ).toUpperCase() ===
+      "CHAT"
   ) {
+
     return "CHAT";
   }
 
+
   if (
-    role === "ASSISTANT" &&
+    role ===
+      "ASSISTANT" &&
     (
       message.GeneratedQuery ||
       message.generated_query
     )
   ) {
+
     return "SQL";
   }
 
-  if (role === "USER") {
+
+  if (
+    role ===
+    "USER"
+  ) {
+
     return null;
   }
+
 
   return "CHAT";
 }
 
 
+// =========================================================
+// NORMALIZE HISTORY MESSAGE
+// =========================================================
+
 function normalizeHistoryMessage(
   message
 ) {
+
   const role = (
     message.MessageRole ??
     message.message_role ??
     ""
   ).toUpperCase();
+
 
   const executionStatus = (
     message.ExecutionStatus ??
@@ -209,15 +327,18 @@ function normalizeHistoryMessage(
     ""
   ).toLowerCase();
 
+
   const responsePayload =
     normalizeResponsePayload(
       message
     );
 
+
   const payloadRows =
     normalizeArrayValue(
       responsePayload?.rows
     );
+
 
   const directRows =
     normalizeArrayValue(
@@ -225,10 +346,12 @@ function normalizeHistoryMessage(
       message.rows
     );
 
+
   const rows =
     payloadRows.length > 0
       ? payloadRows
       : directRows;
+
 
   const engine =
     normalizeEngine(
@@ -237,45 +360,48 @@ function normalizeHistoryMessage(
       role
     );
 
+
   const answer =
     responsePayload?.answer ??
     responsePayload?.summary ??
-    responsePayload
-      ?.executive_summary ??
+    responsePayload?.executive_summary ??
     message.MessageText ??
     message.message_text ??
     "";
 
+
   return {
+
     id:
       message.MessageId ??
       message.message_id ??
       crypto.randomUUID(),
 
     role:
-      role === "USER"
+      role ===
+        "USER"
         ? "user"
         : "ai",
 
     engine,
 
-    text: answer,
+    text:
+      answer,
 
     answer,
 
-    content: answer,
+    content:
+      answer,
 
     executiveSummary:
-      responsePayload
-        ?.executive_summary ??
+      responsePayload?.executive_summary ??
       message.ExecutiveSummary ??
       message.executive_summary ??
       null,
 
     keyInsights:
       normalizeArrayValue(
-        responsePayload
-          ?.key_insights ??
+        responsePayload?.key_insights ??
         message.KeyInsights ??
         message.key_insights
       ),
@@ -289,10 +415,8 @@ function normalizeHistoryMessage(
 
     suggestions:
       normalizeArrayValue(
-        responsePayload
-          ?.suggestions ??
-        responsePayload
-          ?.suggested_questions ??
+        responsePayload?.suggestions ??
+        responsePayload?.suggested_questions ??
         message.Suggestions ??
         message.suggestions
       ),
@@ -300,17 +424,14 @@ function normalizeHistoryMessage(
     rows,
 
     generatedQuery:
-      responsePayload
-        ?.generated_sql ??
-      responsePayload
-        ?.executed_sql ??
+      responsePayload?.generated_sql ??
+      responsePayload?.executed_sql ??
       message.GeneratedQuery ??
       message.generated_query ??
       null,
 
     executedQuery:
-      responsePayload
-        ?.executed_sql ??
+      responsePayload?.executed_sql ??
       null,
 
     queryType:
@@ -324,7 +445,8 @@ function normalizeHistoryMessage(
       message.DataSource ??
       message.data_source ??
       (
-        engine === "CHAT"
+        engine ===
+          "CHAT"
           ? "GPT"
           : "Azure SQL"
       ),
@@ -333,14 +455,14 @@ function normalizeHistoryMessage(
       responsePayload?.status ??
       executionStatus ??
       (
-        role === "ASSISTANT"
+        role ===
+          "ASSISTANT"
           ? "success"
           : null
       ),
 
     executionTime:
-      responsePayload
-        ?.execution_time_ms ??
+      responsePayload?.execution_time_ms ??
       message.ExecutionTimeMs ??
       message.execution_time_ms ??
       null,
@@ -362,34 +484,43 @@ function normalizeHistoryMessage(
       rows.length,
 
     requestPlan:
-      responsePayload
-        ?.request_plan ??
+      responsePayload?.request_plan ??
       null,
   };
 }
 
 
+// =========================================================
+// APP
+// =========================================================
+
 function App() {
 
-  // -------------------------------------------------
-  // Entra authenticated user
-  // -------------------------------------------------
+  // =====================================================
+  // USER
+  // =====================================================
 
   const [
     currentUser,
     setCurrentUser,
   ] = useState(null);
 
+
   const [
     userLoading,
     setUserLoading,
   ] = useState(true);
+
 
   const [
     userError,
     setUserError,
   ] = useState(null);
 
+
+  // =====================================================
+  // CHAT
+  // =====================================================
 
   const [
     messages,
@@ -398,15 +529,18 @@ function App() {
     initialMessage,
   ]);
 
+
   const [
     isLoading,
     setIsLoading,
   ] = useState(false);
 
+
   const [
     conversations,
     setConversations,
   ] = useState([]);
+
 
   const [
     activeConversationId,
@@ -414,215 +548,303 @@ function App() {
   ] = useState(null);
 
 
-  // -------------------------------------------------
-  // Load authenticated Entra user
-  // -------------------------------------------------
+  // =====================================================
+  // LOAD AUTHENTICATED USER
+  // =====================================================
 
-  useEffect(() => {
-    async function loadAuthenticatedUser() {
-      try {
-        setUserLoading(true);
-        setUserError(null);
+  useEffect(
+    () => {
 
-        const authenticatedUser =
-          await getCurrentUser();
+      async function loadAuthenticatedUser() {
 
-        if (
-          !authenticatedUser?.id
+        try {
+
+          setUserLoading(
+            true
+          );
+
+
+          setUserError(
+            null
+          );
+
+
+          const authenticatedUser =
+            await getCurrentUser();
+
+
+          if (
+            !authenticatedUser?.id
+          ) {
+
+            throw new Error(
+              "Authenticated Entra user could not be loaded."
+            );
+          }
+
+
+          console.log(
+            "Authenticated Executive user:",
+            authenticatedUser
+          );
+
+
+          setCurrentUser(
+            authenticatedUser
+          );
+
+
+        } catch (
+          error
         ) {
-          throw new Error(
-            "Authenticated Entra user could not be loaded."
+
+          console.error(
+            "Unable to load authenticated user:",
+            error
+          );
+
+
+          setUserError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load authenticated user."
+          );
+
+
+        } finally {
+
+          setUserLoading(
+            false
           );
         }
-
-        console.log(
-          "Authenticated user:",
-          authenticatedUser
-        );
-
-        setCurrentUser(
-          authenticatedUser
-        );
-
-      } catch (error) {
-        console.error(
-          "Unable to load authenticated user:",
-          error
-        );
-
-        setUserError(
-          error instanceof Error
-            ? error.message
-            : "Unable to load authenticated user."
-        );
-
-      } finally {
-        setUserLoading(false);
       }
-    }
-
-    loadAuthenticatedUser();
-  }, []);
 
 
-  // -------------------------------------------------
-  // Load conversations AFTER Entra user is available
-  // -------------------------------------------------
+      loadAuthenticatedUser();
 
-  useEffect(() => {
-    if (
-      !currentUser?.id
-    ) {
-      return;
-    }
+    },
+    []
+  );
 
-    loadConversationHistory();
 
-  }, [currentUser?.id]);
+  // =====================================================
+  // LOAD HISTORY AFTER USER AVAILABLE
+  // =====================================================
 
+  useEffect(
+    () => {
+
+      if (
+        !currentUser?.id
+      ) {
+
+        return;
+      }
+
+
+      loadConversationHistory();
+
+    },
+    [
+      currentUser?.id,
+    ]
+  );
+
+
+  // =====================================================
+  // LOAD EXECUTIVE CONVERSATIONS
+  // =====================================================
 
   async function loadConversationHistory() {
+
     if (
       !currentUser?.id
     ) {
+
       return;
     }
 
+
     try {
+
+      console.log(
+        "Loading Executive conversation history:",
+        {
+          userId:
+            currentUser.id,
+
+          agentId:
+            AGENT_ID,
+        }
+      );
+
+
       const history =
         await getConversations(
-          currentUser.id
+          currentUser.id,
+          AGENT_ID
         );
 
+
+      console.log(
+        "Executive history loaded:",
+        history
+      );
+
+
       setConversations(
-        Array.isArray(history)
+        Array.isArray(
+          history
+        )
           ? history
           : []
       );
 
-    } catch (error) {
+
+    } catch (
+      error
+    ) {
+
       console.error(
-        "Unable to load conversations:",
+        "Unable to load Executive conversation history:",
         error
+      );
+
+
+      setConversations(
+        []
       );
     }
   }
 
 
-  // -------------------------------------------------
-  // Create a conversation for the first question
-  // -------------------------------------------------
+  // =====================================================
+  // ENSURE CONVERSATION
+  // =====================================================
 
   async function ensureConversation(
     question
   ) {
+
     if (
       activeConversationId
     ) {
+
       return activeConversationId;
     }
+
 
     if (
       !currentUser?.id
     ) {
+
       throw new Error(
         "Authenticated user is not available."
       );
     }
+
 
     const title =
       createConversationTitle(
         question
       );
 
+
     const newConversation =
       await createConversation(
         currentUser,
         title,
-        "EXECUTIVE"
+        AGENT_ID
       );
 
-    if (!newConversation?.id) {
+
+    if (
+      !newConversation?.id
+    ) {
+
       throw new Error(
         "The backend did not return a conversation ID."
       );
     }
 
+
     setActiveConversationId(
       newConversation.id
     );
 
+
     setConversations(
-      (previous) => [
+      (
+        previous
+      ) => [
+
         newConversation,
+
         ...previous.filter(
-          (conversation) =>
+          (
+            conversation
+          ) =>
             conversation.id !==
             newConversation.id
         ),
+
       ]
     );
+
 
     return newConversation.id;
   }
 
 
-  // -------------------------------------------------
-  // Send a user question
-  // -------------------------------------------------
+  // =====================================================
+  // SEND QUESTION
+  // =====================================================
 
   async function handleSend(
     question
   ) {
+
     const cleanQuestion =
-      question?.trim();
+      String(
+        question || ""
+      ).trim();
+
 
     if (
       !cleanQuestion ||
       isLoading
     ) {
+
       return;
     }
+
 
     if (
       !currentUser?.id
     ) {
+
       alert(
         "Unable to identify the authenticated user."
       );
 
-      return;
-    }
-
-    setIsLoading(true);
-
-    let conversationId = null;
-
-    try {
-      conversationId =
-        await ensureConversation(
-          cleanQuestion
-        );
-
-    } catch (error) {
-      setIsLoading(false);
-
-      console.error(
-        "Unable to create conversation:",
-        error
-      );
-
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Unable to create conversation."
-      );
 
       return;
     }
 
+
+    setIsLoading(
+      true
+    );
+
+
+    // ===================================================
+    // SHOW USER + THINKING MESSAGE IMMEDIATELY
+    //
+    // This happens BEFORE conversation creation.
+    // ===================================================
 
     const userMessage = {
+
       id:
         crypto.randomUUID(),
 
@@ -638,12 +860,11 @@ function App() {
       crypto.randomUUID();
 
 
-    // -------------------------------------------------
-    // Add the user question + one temporary AI message
-    // -------------------------------------------------
-
     setMessages(
-      (previous) => [
+      (
+        previous
+      ) => [
+
         ...previous,
 
         userMessage,
@@ -659,44 +880,82 @@ function App() {
             "PLANNER",
 
           text:
-            "Processing your request...",
+            "Understanding your question...",
 
           isLoading:
             true,
         },
+
       ]
     );
 
 
+    let conversationId =
+      activeConversationId;
+
+
     try {
 
-      // -------------------------------------------------
-      // SSE request
-      // -------------------------------------------------
+      // =================================================
+      // CREATE / REUSE CONVERSATION
+      // =================================================
+
+      conversationId =
+        await ensureConversation(
+          cleanQuestion
+        );
+
+
+      // =================================================
+      // UPDATE THINKING STATUS
+      // =================================================
+
+      setMessages(
+        (
+          previous
+        ) =>
+          previous.map(
+            (
+              message
+            ) =>
+              message.id ===
+                loadingId
+                ? {
+                    ...message,
+
+                    text:
+                      "Analyzing the relevant business data...",
+                  }
+                : message
+          )
+      );
+
+
+      // =================================================
+      // SSE CHAT
+      // =================================================
 
       const response =
         await sendMessageStream(
           cleanQuestion,
           conversationId,
-
           () => {
 
-            // ---------------------------------------------
-            // The same loading message is updated.
-            // No additional message is created.
-            // ---------------------------------------------
-
             setMessages(
-              (previous) =>
+              (
+                previous
+              ) =>
                 previous.map(
-                  (message) =>
+                  (
+                    message
+                  ) =>
                     message.id ===
-                    loadingId
+                      loadingId
                       ? {
                           ...message,
 
                           text:
-                            "Processing your request...",
+                            "Preparing the response...",
                         }
                       : message
                 )
@@ -705,9 +964,9 @@ function App() {
         );
 
 
-      // -------------------------------------------------
-      // Normalize rows
-      // -------------------------------------------------
+      // =================================================
+      // ROWS
+      // =================================================
 
       const rows =
         Array.isArray(
@@ -723,43 +982,45 @@ function App() {
             );
 
 
-      // -------------------------------------------------
-      // Detect response engine
-      // -------------------------------------------------
+      // =================================================
+      // ENGINE
+      // =================================================
 
       const responseEngine =
         String(
           response?.engine ||
           (
             rows.length > 0 ||
-            response?.generated_sql
+            response?.generated_sql ||
+            response?.executed_sql
               ? "SQL"
               : "CHAT"
           )
         ).toUpperCase();
 
 
-      // -------------------------------------------------
-      // Get final answer text
-      // -------------------------------------------------
+      // =================================================
+      // ANSWER
+      // =================================================
 
       const answer =
         response?.answer ||
         response?.summary ||
-        response
-          ?.executive_summary ||
+        response?.executive_summary ||
         (
-          responseEngine === "CHAT"
+          responseEngine ===
+            "CHAT"
             ? "No response was generated."
             : "The query completed successfully."
         );
 
 
-      // -------------------------------------------------
-      // Build final assistant message
-      // -------------------------------------------------
+      // =================================================
+      // FINAL ASSISTANT MESSAGE
+      // =================================================
 
       const assistantMessage = {
+
         id:
           crypto.randomUUID(),
 
@@ -778,8 +1039,7 @@ function App() {
           answer,
 
         executiveSummary:
-          response
-            ?.executive_summary ||
+          response?.executive_summary ||
           null,
 
         keyInsights:
@@ -805,11 +1065,9 @@ function App() {
             ? response.suggestions
             : (
                 Array.isArray(
-                  response
-                    ?.suggested_questions
+                  response?.suggested_questions
                 )
-                  ? response
-                      .suggested_questions
+                  ? response.suggested_questions
                   : []
               ),
 
@@ -830,7 +1088,8 @@ function App() {
         source:
           response?.source ||
           (
-            responseEngine === "CHAT"
+            responseEngine ===
+              "CHAT"
               ? "GPT"
               : "Azure SQL"
           ),
@@ -840,11 +1099,8 @@ function App() {
           rows.length,
 
         executionTime:
-          response
-            ?.execution_time_ms ??
-          response
-            ?.timings
-            ?.request_total_ms ??
+          response?.execution_time_ms ??
+          response?.timings?.request_total_ms ??
           null,
 
         timings:
@@ -865,111 +1121,118 @@ function App() {
       };
 
 
-      // -------------------------------------------------
-      // Replace loading message with final response
-      // -------------------------------------------------
+      // =================================================
+      // REPLACE THINKING MESSAGE
+      // =================================================
 
       setMessages(
-        (previous) =>
+        (
+          previous
+        ) =>
           previous.map(
-            (message) =>
+            (
+              message
+            ) =>
               message.id ===
-              loadingId
+                loadingId
                 ? assistantMessage
                 : message
           )
       );
 
 
-      // -------------------------------------------------
-      // Refresh sidebar history
-      // -------------------------------------------------
+      // =================================================
+      // REFRESH SIDEBAR
+      // =================================================
 
       await loadConversationHistory();
 
 
-    } catch (error) {
+    } catch (
+      error
+    ) {
 
       console.error(
-        "Unable to process chat request:",
+        "Unable to process Executive request:",
         error
       );
 
 
-      const errorMessage = {
-        id:
-          crypto.randomUUID(),
-
-        role:
-          "ai",
-
-        engine:
-          "SYSTEM",
-
-        text:
-          error instanceof Error
-            ? error.message
-            : (
-                "Unable to process the " +
-                "request. Please try again."
-              ),
-
-        status:
-          "error",
-
-        source:
-          "System",
-
-        rows:
-          [],
-
-        keyInsights:
-          [],
-
-        suggestions:
-          [],
-
-        visual:
-          null,
-      };
-
-
-      // -------------------------------------------------
-      // Replace loading message with error
-      // -------------------------------------------------
-
       setMessages(
-        (previous) =>
+        (
+          previous
+        ) =>
           previous.map(
-            (message) =>
+            (
+              message
+            ) =>
               message.id ===
-              loadingId
-                ? errorMessage
+                loadingId
+                ? {
+                    id:
+                      crypto.randomUUID(),
+
+                    role:
+                      "ai",
+
+                    engine:
+                      "SYSTEM",
+
+                    text:
+                      error instanceof Error
+                        ? error.message
+                        : "Unable to process the request.",
+
+                    status:
+                      "error",
+
+                    source:
+                      "System",
+
+                    rows:
+                      [],
+
+                    keyInsights:
+                      [],
+
+                    suggestions:
+                      [],
+
+                    visual:
+                      null,
+                  }
                 : message
           )
       );
 
 
     } finally {
-      setIsLoading(false);
+
+      setIsLoading(
+        false
+      );
     }
   }
 
 
-  // -------------------------------------------------
-  // Start a new conversation
-  // -------------------------------------------------
+  // =====================================================
+  // NEW CHAT
+  // =====================================================
 
   function handleNewChat() {
+
     if (
       isLoading
     ) {
+
       return;
     }
+
 
     setActiveConversationId(
       null
     );
+
 
     setMessages([
       initialMessage,
@@ -977,23 +1240,30 @@ function App() {
   }
 
 
-  // -------------------------------------------------
-  // Open a previous conversation
-  // -------------------------------------------------
+  // =====================================================
+  // OPEN HISTORY
+  // =====================================================
 
   async function handleHistoryClick(
     conversationId
   ) {
+
     if (
       isLoading ||
       !conversationId
     ) {
+
       return;
     }
 
-    setIsLoading(true);
+
+    setIsLoading(
+      true
+    );
+
 
     try {
+
       const history =
         await getConversationMessages(
           conversationId
@@ -1001,7 +1271,9 @@ function App() {
 
 
       const formattedMessages =
-        Array.isArray(history)
+        Array.isArray(
+          history
+        )
           ? history.map(
               normalizeHistoryMessage
             )
@@ -1013,106 +1285,136 @@ function App() {
       );
 
 
-      if (
+      setMessages(
         formattedMessages.length > 0
-      ) {
-        setMessages(
-          formattedMessages
-        );
-      } else {
-        setMessages([
-          initialMessage,
-        ]);
-      }
+          ? formattedMessages
+          : [
+              initialMessage,
+            ]
+      );
 
 
-    } catch (error) {
+    } catch (
+      error
+    ) {
+
       console.error(
         "Unable to load conversation:",
         error
       );
 
+
       alert(
         error instanceof Error
           ? error.message
-          : (
-              "Unable to load " +
-              "conversation history."
-            )
+          : "Unable to load conversation history."
       );
 
 
     } finally {
-      setIsLoading(false);
+
+      setIsLoading(
+        false
+      );
     }
   }
 
 
-  // -------------------------------------------------
-  // Wait for Entra user before rendering application
-  // -------------------------------------------------
+  // =====================================================
+  // USER LOADING
+  // =====================================================
 
-  if (userLoading) {
+  if (
+    userLoading
+  ) {
+
     return (
+
       <div
         style={{
-          height: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          height:
+            "100vh",
+
+          display:
+            "flex",
+
+          alignItems:
+            "center",
+
+          justifyContent:
+            "center",
+
           fontFamily:
             "Arial, sans-serif",
+
           color:
             "#174779",
         }}
       >
+
         Loading your profile...
+
       </div>
     );
   }
 
 
-  // -------------------------------------------------
-  // Authentication/profile error
-  // -------------------------------------------------
+  // =====================================================
+  // USER ERROR
+  // =====================================================
 
   if (
     userError ||
     !currentUser
   ) {
+
     return (
+
       <div
         style={{
-          height: "100vh",
-          display: "flex",
+          height:
+            "100vh",
+
+          display:
+            "flex",
+
           flexDirection:
             "column",
+
           alignItems:
             "center",
+
           justifyContent:
             "center",
-          gap: 8,
+
+          gap:
+            8,
+
           fontFamily:
             "Arial, sans-serif",
         }}
       >
+
         <strong>
           Unable to load your user profile.
         </strong>
 
+
         <span>
           {userError}
         </span>
+
       </div>
     );
   }
 
 
-  // -------------------------------------------------
-  // Application
-  // -------------------------------------------------
+  // =====================================================
+  // UI
+  // =====================================================
 
   return (
+
     <Layout
       user={
         currentUser
@@ -1135,7 +1437,10 @@ function App() {
       }
     >
 
-      <div className="chat-container">
+      <div
+        className=
+          "chat-container"
+      >
 
         <ChatWindow
           messages={
@@ -1148,7 +1453,10 @@ function App() {
         />
 
 
-        <div className="composer-section">
+        <div
+          className=
+            "composer-section"
+        >
 
           <SuggestedQuestions
             questions={
@@ -1181,9 +1489,13 @@ function App() {
         </div>
 
 
-        <div className="chat-footer">
-          AI-generated answers and insights
-          may require business validation.
+        <div
+          className=
+            "chat-footer"
+        >
+
+          AI-generated answers and insights may require business validation.
+
         </div>
 
       </div>
