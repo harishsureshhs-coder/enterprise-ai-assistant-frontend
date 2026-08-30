@@ -538,7 +538,8 @@ function App() {
     const newConversation =
       await createConversation(
         currentUser,
-        title
+        title,
+        "EXECUTIVE"
       );
 
     if (!newConversation?.id) {

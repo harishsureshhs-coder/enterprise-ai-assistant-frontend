@@ -760,7 +760,8 @@ function SalesApp() {
     const newConversation =
       await createConversation(
         currentUser,
-        title
+        title,
+        "SALES"
       );
 
 

@@ -22,6 +22,9 @@ export async function createConversation(
       body: JSON.stringify({
         user_id: user.id,
 
+        agent_id:
+            agentId,
+
         display_name:
           user.name ||
           "Guest User",
