@@ -33,6 +33,10 @@ const AGENT_ID =
   "EXECUTIVE";
 
 
+const ACTIVE_CONVERSATION_KEY =
+  "executive-active-conversation";
+
+
 // =========================================================
 // INITIAL MESSAGE
 // =========================================================
@@ -193,16 +197,20 @@ function normalizeObjectValue(
         );
 
 
-      return (
+      if (
         parsedValue &&
         typeof parsedValue ===
           "object" &&
         !Array.isArray(
           parsedValue
         )
-      )
-        ? parsedValue
-        : null;
+      ) {
+
+        return parsedValue;
+      }
+
+
+      return null;
 
 
     } catch {
@@ -491,13 +499,13 @@ function normalizeHistoryMessage(
 
 
 // =========================================================
-// APP
+// EXECUTIVE APP
 // =========================================================
 
 function App() {
 
   // =====================================================
-  // USER
+  // AUTHENTICATED USER
   // =====================================================
 
   const [
@@ -519,7 +527,7 @@ function App() {
 
 
   // =====================================================
-  // CHAT
+  // CHAT STATE
   // =====================================================
 
   const [
@@ -642,7 +650,9 @@ function App() {
       }
 
 
-      loadConversationHistory();
+      loadConversationHistory(
+        true
+      );
 
     },
     [
@@ -653,9 +663,17 @@ function App() {
 
   // =====================================================
   // LOAD EXECUTIVE CONVERSATIONS
+  //
+  // restoreActive=true:
+  // used only during initial page load / refresh.
+  //
+  // restoreActive=false:
+  // only refreshes sidebar after sending a question.
   // =====================================================
 
-  async function loadConversationHistory() {
+  async function loadConversationHistory(
+    restoreActive = false
+  ) {
 
     if (
       !currentUser?.id
@@ -675,6 +693,8 @@ function App() {
 
           agentId:
             AGENT_ID,
+
+          restoreActive,
         }
       );
 
@@ -686,18 +706,105 @@ function App() {
         );
 
 
-      console.log(
-        "Executive history loaded:",
-        history
-      );
-
-
-      setConversations(
+      const normalizedHistory =
         Array.isArray(
           history
         )
           ? history
-          : []
+          : [];
+
+
+      setConversations(
+        normalizedHistory
+      );
+
+
+      // =================================================
+      // SIDEBAR ONLY REFRESH
+      // =================================================
+
+      if (
+        !restoreActive
+      ) {
+
+        return;
+      }
+
+
+      // =================================================
+      // RESTORE ACTIVE CONVERSATION AFTER PAGE REFRESH
+      // =================================================
+
+      const storedConversationId =
+        sessionStorage.getItem(
+          ACTIVE_CONVERSATION_KEY
+        );
+
+
+      if (
+        !storedConversationId
+      ) {
+
+        return;
+      }
+
+
+      const conversationExists =
+        normalizedHistory.some(
+          (
+            conversation
+          ) =>
+            conversation.id ===
+            storedConversationId
+        );
+
+
+      if (
+        !conversationExists
+      ) {
+
+        sessionStorage.removeItem(
+          ACTIVE_CONVERSATION_KEY
+        );
+
+
+        return;
+      }
+
+
+      const historyMessages =
+        await getConversationMessages(
+          storedConversationId
+        );
+
+
+      const formattedMessages =
+        Array.isArray(
+          historyMessages
+        )
+          ? historyMessages.map(
+              normalizeHistoryMessage
+            )
+          : [];
+
+
+      setActiveConversationId(
+        storedConversationId
+      );
+
+
+      setMessages(
+        formattedMessages.length > 0
+          ? formattedMessages
+          : [
+              initialMessage,
+            ]
+      );
+
+
+      console.log(
+        "Executive conversation restored:",
+        storedConversationId
       );
 
 
@@ -719,7 +826,7 @@ function App() {
 
 
   // =====================================================
-  // ENSURE CONVERSATION
+  // CREATE / REUSE CONVERSATION
   // =====================================================
 
   async function ensureConversation(
@@ -729,6 +836,12 @@ function App() {
     if (
       activeConversationId
     ) {
+
+      sessionStorage.setItem(
+        ACTIVE_CONVERSATION_KEY,
+        activeConversationId
+      );
+
 
       return activeConversationId;
     }
@@ -769,6 +882,12 @@ function App() {
 
 
     setActiveConversationId(
+      newConversation.id
+    );
+
+
+    sessionStorage.setItem(
+      ACTIVE_CONVERSATION_KEY,
       newConversation.id
     );
 
@@ -838,9 +957,7 @@ function App() {
 
 
     // ===================================================
-    // SHOW USER + THINKING MESSAGE IMMEDIATELY
-    //
-    // This happens BEFORE conversation creation.
+    // SHOW QUESTION IMMEDIATELY
     // ===================================================
 
     const userMessage = {
@@ -890,24 +1007,20 @@ function App() {
     );
 
 
-    let conversationId =
-      activeConversationId;
-
-
     try {
 
       // =================================================
       // CREATE / REUSE CONVERSATION
       // =================================================
 
-      conversationId =
+      const conversationId =
         await ensureConversation(
           cleanQuestion
         );
 
 
       // =================================================
-      // UPDATE THINKING STATUS
+      // UPDATE THINKING STATE
       // =================================================
 
       setMessages(
@@ -932,13 +1045,14 @@ function App() {
 
 
       // =================================================
-      // SSE CHAT
+      // SSE REQUEST
       // =================================================
 
       const response =
         await sendMessageStream(
           cleanQuestion,
           conversationId,
+
           () => {
 
             setMessages(
@@ -1016,7 +1130,7 @@ function App() {
 
 
       // =================================================
-      // FINAL ASSISTANT MESSAGE
+      // ASSISTANT MESSAGE
       // =================================================
 
       const assistantMessage = {
@@ -1122,7 +1236,7 @@ function App() {
 
 
       // =================================================
-      // REPLACE THINKING MESSAGE
+      // REPLACE LOADING MESSAGE
       // =================================================
 
       setMessages(
@@ -1142,10 +1256,12 @@ function App() {
 
 
       // =================================================
-      // REFRESH SIDEBAR
+      // REFRESH SIDEBAR ONLY
       // =================================================
 
-      await loadConversationHistory();
+      await loadConversationHistory(
+        false
+      );
 
 
     } catch (
@@ -1169,6 +1285,7 @@ function App() {
               message.id ===
                 loadingId
                 ? {
+
                     id:
                       crypto.randomUUID(),
 
@@ -1229,6 +1346,11 @@ function App() {
     }
 
 
+    sessionStorage.removeItem(
+      ACTIVE_CONVERSATION_KEY
+    );
+
+
     setActiveConversationId(
       null
     );
@@ -1241,7 +1363,7 @@ function App() {
 
 
   // =====================================================
-  // OPEN HISTORY
+  // OPEN PREVIOUS CONVERSATION
   // =====================================================
 
   async function handleHistoryClick(
@@ -1281,6 +1403,12 @@ function App() {
 
 
       setActiveConversationId(
+        conversationId
+      );
+
+
+      sessionStorage.setItem(
+        ACTIVE_CONVERSATION_KEY,
         conversationId
       );
 

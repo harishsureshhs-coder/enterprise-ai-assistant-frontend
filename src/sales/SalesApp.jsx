@@ -72,6 +72,10 @@ const AGENT_ID =
   "SALES";
 
 
+const ACTIVE_CONVERSATION_KEY =
+  "sales-active-conversation";
+
+
 // =========================================================
 // INITIAL SALES MESSAGE
 // =========================================================
@@ -109,7 +113,7 @@ const salesInitialMessage = {
 
 
 // =========================================================
-// CONVERSATION TITLE
+// CREATE TITLE
 // =========================================================
 
 function createConversationTitle(
@@ -249,7 +253,7 @@ function normalizeObjectValue(
 
 
 // =========================================================
-// HISTORY MESSAGE
+// NORMALIZE HISTORY
 // =========================================================
 
 function normalizeHistoryMessage(
@@ -279,18 +283,18 @@ function normalizeHistoryMessage(
     );
 
 
-  const explicitEngine =
-    responsePayload?.engine ??
-    message.Engine ??
-    message.engine ??
-    null;
-
-
   const generatedQuery =
     responsePayload?.generated_sql ??
     responsePayload?.executed_sql ??
     message.GeneratedQuery ??
     message.generated_query ??
+    null;
+
+
+  const explicitEngine =
+    responsePayload?.engine ??
+    message.Engine ??
+    message.engine ??
     null;
 
 
@@ -682,7 +686,7 @@ function SalesApp() {
 
 
   // =====================================================
-  // LOAD SALES HISTORY AFTER AUTH
+  // LOAD HISTORY AFTER AUTH
   // =====================================================
 
   useEffect(
@@ -696,7 +700,9 @@ function SalesApp() {
       }
 
 
-      loadConversationHistory();
+      loadConversationHistory(
+        true
+      );
 
     },
     [
@@ -706,10 +712,12 @@ function SalesApp() {
 
 
   // =====================================================
-  // LOAD SALES CONVERSATIONS
+  // LOAD SALES HISTORY
   // =====================================================
 
-  async function loadConversationHistory() {
+  async function loadConversationHistory(
+    restoreActive = false
+  ) {
 
     if (
       !currentUser?.id
@@ -721,18 +729,6 @@ function SalesApp() {
 
     try {
 
-      console.log(
-        "Loading Sales conversation history:",
-        {
-          userId:
-            currentUser.id,
-
-          agentId:
-            AGENT_ID,
-        }
-      );
-
-
       const history =
         await getConversations(
           currentUser.id,
@@ -740,18 +736,95 @@ function SalesApp() {
         );
 
 
-      console.log(
-        "Sales history loaded:",
-        history
-      );
-
-
-      setConversations(
+      const normalizedHistory =
         Array.isArray(
           history
         )
           ? history
-          : []
+          : [];
+
+
+      setConversations(
+        normalizedHistory
+      );
+
+
+      if (
+        !restoreActive
+      ) {
+
+        return;
+      }
+
+
+      // =================================================
+      // RESTORE CURRENT SALES CONVERSATION
+      // =================================================
+
+      const storedConversationId =
+        sessionStorage.getItem(
+          ACTIVE_CONVERSATION_KEY
+        );
+
+
+      if (
+        !storedConversationId
+      ) {
+
+        return;
+      }
+
+
+      const conversationExists =
+        normalizedHistory.some(
+          (
+            conversation
+          ) =>
+            conversation.id ===
+            storedConversationId
+        );
+
+
+      if (
+        !conversationExists
+      ) {
+
+        sessionStorage.removeItem(
+          ACTIVE_CONVERSATION_KEY
+        );
+
+
+        return;
+      }
+
+
+      const historyMessages =
+        await getConversationMessages(
+          storedConversationId
+        );
+
+
+      const formattedMessages =
+        Array.isArray(
+          historyMessages
+        )
+          ? historyMessages.map(
+              normalizeHistoryMessage
+            )
+          : [];
+
+
+      setActiveConversationId(
+        storedConversationId
+      );
+
+
+      setMessages(
+        formattedMessages.length > 0
+          ? formattedMessages
+          : [
+              salesInitialMessage,
+            ]
       );
 
 
@@ -773,7 +846,7 @@ function SalesApp() {
 
 
   // =====================================================
-  // ENSURE CHAT CONVERSATION
+  // ENSURE NORMAL SALES CHAT
   // =====================================================
 
   async function ensureConversation(
@@ -783,6 +856,12 @@ function SalesApp() {
     if (
       activeConversationId
     ) {
+
+      sessionStorage.setItem(
+        ACTIVE_CONVERSATION_KEY,
+        activeConversationId
+      );
+
 
       return activeConversationId;
     }
@@ -827,6 +906,12 @@ function SalesApp() {
     );
 
 
+    sessionStorage.setItem(
+      ACTIVE_CONVERSATION_KEY,
+      newConversation.id
+    );
+
+
     setConversations(
       (
         previous
@@ -851,7 +936,7 @@ function SalesApp() {
 
 
   // =====================================================
-  // GET OR CREATE VISIT CONVERSATION
+  // GET / CREATE SALES VISIT CONVERSATION
   // =====================================================
 
   async function getOrCreateSalesConversation() {
@@ -859,6 +944,12 @@ function SalesApp() {
     if (
       activeConversationId
     ) {
+
+      sessionStorage.setItem(
+        ACTIVE_CONVERSATION_KEY,
+        activeConversationId
+      );
+
 
       return activeConversationId;
     }
@@ -915,6 +1006,12 @@ function SalesApp() {
     );
 
 
+    sessionStorage.setItem(
+      ACTIVE_CONVERSATION_KEY,
+      conversationId
+    );
+
+
     setConversations(
       (
         previous
@@ -939,7 +1036,7 @@ function SalesApp() {
 
 
   // =====================================================
-  // CUSTOMER SELECT
+  // SELECT CUSTOMER
   // =====================================================
 
   async function handleCustomerSelect(
@@ -1214,7 +1311,7 @@ function SalesApp() {
 
 
   // =====================================================
-  // SEND
+  // SEND QUESTION
   // =====================================================
 
   async function handleSend(
@@ -1338,6 +1435,7 @@ function SalesApp() {
         await sendMessageStream(
           cleanQuestion,
           conversationId,
+
           () => {
 
             setMessages(
@@ -1523,7 +1621,9 @@ function SalesApp() {
       );
 
 
-      await loadConversationHistory();
+      await loadConversationHistory(
+        false
+      );
 
 
     } catch (
@@ -1653,7 +1753,7 @@ function SalesApp() {
 
 
   // =====================================================
-  // SAVE RECORDING
+  // SAVE + TRANSCRIBE + SUMMARIZE
   // =====================================================
 
   async function handleSaveRecording() {
@@ -1729,9 +1829,17 @@ function SalesApp() {
       );
 
 
+      // =================================================
+      // CREATE / REUSE CONVERSATION
+      // =================================================
+
       const conversationId =
         await getOrCreateSalesConversation();
 
+
+      // =================================================
+      // UPLOAD
+      // =================================================
 
       const saved =
         await uploadSalesRecording({
@@ -1802,6 +1910,10 @@ function SalesApp() {
       );
 
 
+      // =================================================
+      // TRANSCRIBE
+      // =================================================
+
       setIsTranscribing(
         true
       );
@@ -1849,6 +1961,10 @@ function SalesApp() {
         );
       }
 
+
+      // =================================================
+      // SUMMARY
+      // =================================================
 
       setIsSummarizing(
         true
@@ -1944,6 +2060,11 @@ function SalesApp() {
     }
 
 
+    sessionStorage.removeItem(
+      ACTIVE_CONVERSATION_KEY
+    );
+
+
     setActiveConversationId(
       null
     );
@@ -2021,7 +2142,7 @@ function SalesApp() {
 
 
   // =====================================================
-  // HISTORY CLICK
+  // OPEN HISTORY
   // =====================================================
 
   async function handleHistoryClick(
@@ -2069,6 +2190,12 @@ function SalesApp() {
       );
 
 
+      sessionStorage.setItem(
+        ACTIVE_CONVERSATION_KEY,
+        conversationId
+      );
+
+
       setMessages(
         formattedMessages.length > 0
           ? formattedMessages
@@ -2077,6 +2204,11 @@ function SalesApp() {
             ]
       );
 
+
+      // =================================================
+      // Sales customer/visit reconstruction can be
+      // added later from conversation metadata.
+      // =================================================
 
       setSelectedCustomer(
         null
