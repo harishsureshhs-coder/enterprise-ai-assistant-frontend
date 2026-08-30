@@ -1,47 +1,206 @@
-const API_BASE_URL =
-  "https://mabdo-dtc3gkb3dhctg9hw.eastus-01.azurewebsites.net";
+import {
+  API_URL,
+} from "../config/apiConfig";
 
-// const API_BASE_URL =
-//   "http://127.0.0.1:8000";
 
+// =========================================================
+// VALID AGENTS
+// =========================================================
+
+const VALID_AGENT_IDS = [
+  "EXECUTIVE",
+  "SALES",
+];
+
+
+// =========================================================
+// NORMALIZE AGENT ID
+// =========================================================
+
+function normalizeAgentId(
+  agentId
+) {
+
+  const normalized =
+    String(
+      agentId || ""
+    )
+      .trim()
+      .toUpperCase();
+
+
+  if (
+    !VALID_AGENT_IDS.includes(
+      normalized
+    )
+  ) {
+
+    throw new Error(
+      `Invalid agent ID: ${agentId || "empty"}`
+    );
+  }
+
+
+  return normalized;
+}
+
+
+// =========================================================
+// READ API RESPONSE
+// =========================================================
+
+async function readApiResponse(
+  response
+) {
+
+  const contentType =
+    response.headers.get(
+      "content-type"
+    ) || "";
+
+
+  if (
+    contentType.includes(
+      "application/json"
+    )
+  ) {
+
+    return response.json();
+  }
+
+
+  const text =
+    await response.text();
+
+
+  return {
+    detail:
+      text,
+  };
+}
+
+
+// =========================================================
+// CREATE CONVERSATION
+// =========================================================
 
 export async function createConversation(
   user,
-  title
+  title,
+  agentId
 ) {
-  const response = await fetch(
-    `${API_BASE_URL}/conversations`,
+
+  // =====================================================
+  // VALIDATE USER
+  // =====================================================
+
+  if (
+    !user?.id
+  ) {
+
+    throw new Error(
+      "Authenticated user is required."
+    );
+  }
+
+
+  // =====================================================
+  // VALIDATE TITLE
+  // =====================================================
+
+  const cleanTitle =
+    String(
+      title || ""
+    ).trim();
+
+
+  if (
+    !cleanTitle
+  ) {
+
+    throw new Error(
+      "Conversation title is required."
+    );
+  }
+
+
+  // =====================================================
+  // VALIDATE AGENT
+  // =====================================================
+
+  const normalizedAgentId =
+    normalizeAgentId(
+      agentId
+    );
+
+
+  console.log(
+    "Creating conversation:",
     {
-      method: "POST",
+      userId:
+        user.id,
 
-      headers: {
-        "Content-Type":
-          "application/json",
-      },
+      email:
+        user.email,
 
-      body: JSON.stringify({
-        user_id: user.id,
+      title:
+        cleanTitle,
 
-        agent_id:
-            agentId,
-
-        display_name:
-          user.name ||
-          "Guest User",
-
-        email_address:
-          user.email ||
-          null,
-
-        title,
-      }),
+      agentId:
+        normalizedAgentId,
     }
   );
 
-  const data =
-    await response.json();
 
-  if (!response.ok) {
+  // =====================================================
+  // API REQUEST
+  // =====================================================
+
+  const response =
+    await fetch(
+      `${API_URL}/conversations`,
+      {
+        method:
+          "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+
+        body:
+          JSON.stringify({
+            user_id:
+              user.id,
+
+            agent_id:
+              normalizedAgentId,
+
+            display_name:
+              user.name ||
+              "Authenticated User",
+
+            email_address:
+              user.email ||
+              null,
+
+            title:
+              cleanTitle,
+          }),
+      }
+    );
+
+
+  const data =
+    await readApiResponse(
+      response
+    );
+
+
+  if (
+    !response.ok
+  ) {
+
     throw new Error(
       data?.detail ||
       data?.message ||
@@ -49,45 +208,183 @@ export async function createConversation(
     );
   }
 
+
+  // =====================================================
+  // NORMALIZE RESPONSE
+  // =====================================================
+
+  const conversationId =
+    data?.conversation_id ??
+    data?.ConversationId;
+
+
+  if (
+    !conversationId
+  ) {
+
+    throw new Error(
+      "Conversation was created but no conversation ID was returned."
+    );
+  }
+
+
   return {
     id:
-      data.conversation_id ??
-      data.ConversationId,
+      conversationId,
 
     title:
-      data.title ??
-      data.Title ??
-      title,
+      data?.title ??
+      data?.Title ??
+      cleanTitle,
+
+    agentId:
+      data?.agent_id ??
+      data?.AgentId ??
+      normalizedAgentId,
 
     updatedAt:
-      data.updated_at ??
-      data.UpdatedAt ??
+      data?.updated_at ??
+      data?.UpdatedAt ??
       new Date().toISOString(),
   };
 }
 
 
+// =========================================================
+// GET CONVERSATIONS
+//
+// IMPORTANT:
+//
+// Conversation history is scoped by:
+//
+// user
+// +
+// agent
+//
+// Executive:
+// getConversations(userId, "EXECUTIVE")
+//
+// Sales:
+// getConversations(userId, "SALES")
+// =========================================================
+
 export async function getConversations(
-  userId
+  userId,
+  agentId
 ) {
-  const url =
-    `${API_BASE_URL}/conversations` +
-    `?user_id=${encodeURIComponent(userId)}`;
 
-  const response = await fetch(url);
+  // =====================================================
+  // VALIDATE USER
+  // =====================================================
 
-  const data = await response.json();
+  const cleanUserId =
+    String(
+      userId || ""
+    ).trim();
 
-  if (!response.ok) {
+
+  if (
+    !cleanUserId
+  ) {
+
     throw new Error(
-      data?.detail ||
-        data?.message ||
-        "Failed to load conversations."
+      "User ID is required."
     );
   }
 
+
+  // =====================================================
+  // VALIDATE AGENT
+  // =====================================================
+
+  const normalizedAgentId =
+    normalizeAgentId(
+      agentId
+    );
+
+
+  // =====================================================
+  // BUILD URL
+  // =====================================================
+
+  const url =
+    `${API_URL}/conversations` +
+    `?user_id=${encodeURIComponent(
+      cleanUserId
+    )}` +
+    `&agent_id=${encodeURIComponent(
+      normalizedAgentId
+    )}`;
+
+
+  console.log(
+    "Loading conversations:",
+    {
+      userId:
+        cleanUserId,
+
+      agentId:
+        normalizedAgentId,
+    }
+  );
+
+
+  // =====================================================
+  // REQUEST
+  // =====================================================
+
+  const response =
+    await fetch(
+      url,
+      {
+        method:
+          "GET",
+
+        headers: {
+          Accept:
+            "application/json",
+        },
+      }
+    );
+
+
+  const data =
+    await readApiResponse(
+      response
+    );
+
+
+  if (
+    !response.ok
+  ) {
+
+    throw new Error(
+      data?.detail ||
+      data?.message ||
+      "Failed to load conversations."
+    );
+  }
+
+
+  if (
+    !Array.isArray(
+      data
+    )
+  ) {
+
+    return [];
+  }
+
+
+  // =====================================================
+  // NORMALIZE RESPONSE
+  // =====================================================
+
   return data.map(
-    (conversation) => ({
+    (
+      conversation
+    ) => ({
+
       id:
         conversation.ConversationId ??
         conversation.conversation_id,
@@ -96,34 +393,89 @@ export async function getConversations(
         conversation.Title ??
         conversation.title,
 
+      agentId:
+        conversation.AgentId ??
+        conversation.agent_id ??
+        normalizedAgentId,
+
       updatedAt:
         conversation.UpdatedAt ??
         conversation.updated_at ??
         conversation.CreatedAt ??
         conversation.created_at,
+
     })
   );
 }
 
 
+// =========================================================
+// GET CONVERSATION MESSAGES
+// =========================================================
+
 export async function getConversationMessages(
   conversationId
 ) {
-  const url =
-    `${API_BASE_URL}/conversations/` +
-    `${encodeURIComponent(conversationId)}/messages`;
 
-  const response = await fetch(url);
+  const cleanConversationId =
+    String(
+      conversationId || ""
+    ).trim();
 
-  const data = await response.json();
 
-  if (!response.ok) {
+  if (
+    !cleanConversationId
+  ) {
+
     throw new Error(
-      data?.detail ||
-        data?.message ||
-        "Failed to load conversation messages."
+      "Conversation ID is required."
     );
   }
 
-  return data;
+
+  const url =
+    `${API_URL}/conversations/` +
+    `${encodeURIComponent(
+      cleanConversationId
+    )}/messages`;
+
+
+  const response =
+    await fetch(
+      url,
+      {
+        method:
+          "GET",
+
+        headers: {
+          Accept:
+            "application/json",
+        },
+      }
+    );
+
+
+  const data =
+    await readApiResponse(
+      response
+    );
+
+
+  if (
+    !response.ok
+  ) {
+
+    throw new Error(
+      data?.detail ||
+      data?.message ||
+      "Failed to load conversation messages."
+    );
+  }
+
+
+  return Array.isArray(
+    data
+  )
+    ? data
+    : [];
 }
