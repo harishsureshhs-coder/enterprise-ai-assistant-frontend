@@ -2,169 +2,309 @@ import {
   API_URL,
 } from "../config/apiConfig";
 
-const REQUEST_TIMEOUT_MS = 120000;
+
+// =========================================================
+// CONFIGURATION
+// =========================================================
+
+export const REQUEST_TIMEOUT_MS =
+  120000;
 
 
-/* =========================================================
-   NORMAL CHAT
-   Existing production API - KEEP THIS
-   ========================================================= */
+// =========================================================
+// NORMALIZE API URL
+// =========================================================
 
-export async function sendMessage(
+const API_BASE_URL =
+  String(
+    API_URL || ""
+  ).replace(
+    /\/+$/,
+    ""
+  );
+
+
+// =========================================================
+// BUILD URL
+// =========================================================
+
+function buildApiUrl(
+  path
+) {
+  const normalizedPath =
+    String(
+      path || ""
+    ).startsWith("/")
+      ? path
+      : `/${path}`;
+
+  return (
+    `${API_BASE_URL}${normalizedPath}`
+  );
+}
+
+
+// =========================================================
+// VALIDATE QUESTION
+// =========================================================
+
+function normalizeQuestion(
+  question
+) {
+  const cleanQuestion =
+    String(
+      question || ""
+    ).trim();
+
+  if (!cleanQuestion) {
+    throw new Error(
+      "Question is required."
+    );
+  }
+
+  return cleanQuestion;
+}
+
+
+// =========================================================
+// BUILD CHAT PAYLOAD
+// =========================================================
+
+function buildChatPayload(
   question,
   conversationId
 ) {
-  const controller = new AbortController();
+  return {
+    question,
 
-  const timeoutId = setTimeout(() => {
-    controller.abort();
-  }, REQUEST_TIMEOUT_MS);
+    conversation_id:
+      conversationId ||
+      null,
+  };
+}
 
-  try {
-    const cleanQuestion =
-      String(question || "").trim();
 
-    if (!cleanQuestion) {
-      throw new Error(
-        "Please enter a question."
+// =========================================================
+// ABORT / TIMEOUT MANAGER
+//
+// Supports:
+//
+// 1. Internal request timeout
+// 2. Future Stop/Cancel button using AbortController
+//
+// Existing callers can continue using only 3 arguments.
+// =========================================================
+
+function createAbortManager(
+  externalSignal = null,
+  timeoutMs =
+    REQUEST_TIMEOUT_MS
+) {
+  const controller =
+    new AbortController();
+
+  let timedOut =
+    false;
+
+  let externallyAborted =
+    false;
+
+
+  // -------------------------------------------------------
+  // External cancellation
+  // -------------------------------------------------------
+
+  const handleExternalAbort =
+    () => {
+      externallyAborted =
+        true;
+
+      controller.abort();
+    };
+
+
+  if (externalSignal) {
+    if (
+      externalSignal.aborted
+    ) {
+      handleExternalAbort();
+    } else {
+      externalSignal.addEventListener(
+        "abort",
+        handleExternalAbort,
+        {
+          once: true,
+        }
       );
     }
+  }
 
-    const response = await fetch(
-      `${API_URL}/chat`,
-      {
-        method: "POST",
 
-        headers: {
-          "Content-Type": "application/json",
-        },
+  // -------------------------------------------------------
+  // Timeout
+  // -------------------------------------------------------
 
-        body: JSON.stringify({
-          question: cleanQuestion,
+  const timeoutId =
+    window.setTimeout(
+      () => {
+        timedOut =
+          true;
 
-          conversation_id:
-            conversationId &&
-            conversationId !== "null"
-              ? conversationId
-              : null,
-        }),
-
-        signal: controller.signal,
-      }
+        controller.abort();
+      },
+      timeoutMs
     );
 
-    let result = null;
 
-    try {
-      result = await response.json();
-    } catch {
-      throw new Error(
-        `Backend returned an invalid response. Status: ${response.status}`
+  // -------------------------------------------------------
+  // Cleanup
+  // -------------------------------------------------------
+
+  function cleanup() {
+    window.clearTimeout(
+      timeoutId
+    );
+
+    if (externalSignal) {
+      externalSignal.removeEventListener(
+        "abort",
+        handleExternalAbort
+      );
+    }
+  }
+
+
+  return {
+    signal:
+      controller.signal,
+
+    cleanup,
+
+    wasTimedOut:
+      () => timedOut,
+
+    wasExternallyAborted:
+      () =>
+        externallyAborted,
+  };
+}
+
+
+// =========================================================
+// READ HTTP ERROR
+// =========================================================
+
+async function readErrorResponse(
+  response
+) {
+  try {
+    const contentType =
+      response.headers.get(
+        "content-type"
+      ) || "";
+
+
+    // -----------------------------------------------------
+    // JSON response
+    // -----------------------------------------------------
+
+    if (
+      contentType.includes(
+        "application/json"
+      )
+    ) {
+      const body =
+        await response.json();
+
+      return (
+        body?.detail ||
+        body?.message ||
+        body?.error ||
+        JSON.stringify(
+          body
+        )
       );
     }
 
-    if (!response.ok) {
-      throw new Error(
-        result?.detail ||
-          result?.message ||
-          result?.answer ||
-          `Backend returned status ${response.status}.`
-      );
-    }
 
-    validateBackendResult(result);
+    // -----------------------------------------------------
+    // Plain text response
+    // -----------------------------------------------------
 
-    return result;
-  } catch (error) {
-    if (error?.name === "AbortError") {
-      throw new Error(
-        "The request took too long. Please try again."
-      );
-    }
+    const text =
+      await response.text();
 
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
+    return (
+      text ||
+      `Request failed with status ${response.status}.`
+    );
+
+  } catch {
+    return (
+      `Request failed with status ${response.status}.`
+    );
   }
 }
 
 
-/* =========================================================
-   SSE CHAT
-   New streaming API
-   ========================================================= */
+// =========================================================
+// NORMAL NON-STREAMING CHAT
+//
+// Kept for compatibility.
+// Main UI currently uses sendMessageStream().
+// =========================================================
 
-export async function sendMessageStream(
+export async function sendMessage(
   question,
   conversationId,
-  onProgress
+  externalSignal = null
 ) {
-  const controller = new AbortController();
-
-  const timeoutId = setTimeout(() => {
-    controller.abort();
-  }, REQUEST_TIMEOUT_MS);
-
-  try {
-    const cleanQuestion =
-      String(question || "").trim();
-
-    if (!cleanQuestion) {
-      throw new Error(
-        "Please enter a question."
-      );
-    }
-
-
-    /* -----------------------------------------------------
-       Open streaming connection
-       ----------------------------------------------------- */
-
-    const response = await fetch(
-      `${API_URL}/chat-stream`,
-      {
-        method: "POST",
-
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "text/event-stream",
-        },
-
-        body: JSON.stringify({
-          question: cleanQuestion,
-
-          conversation_id:
-            conversationId &&
-            conversationId !== "null"
-              ? conversationId
-              : null,
-        }),
-
-        signal: controller.signal,
-      }
+  const cleanQuestion =
+    normalizeQuestion(
+      question
     );
 
 
-    /* -----------------------------------------------------
-       HTTP-level error
-       ----------------------------------------------------- */
+  const abortManager =
+    createAbortManager(
+      externalSignal
+    );
+
+
+  try {
+    const response =
+      await fetch(
+        buildApiUrl(
+          "/chat"
+        ),
+        {
+          method:
+            "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+
+          body:
+            JSON.stringify(
+              buildChatPayload(
+                cleanQuestion,
+                conversationId
+              )
+            ),
+
+          signal:
+            abortManager.signal,
+        }
+      );
+
 
     if (!response.ok) {
-      let errorMessage =
-        `Backend returned status ${response.status}.`;
-
-      try {
-        const errorResult =
-          await response.json();
-
-        errorMessage =
-          errorResult?.detail ||
-          errorResult?.message ||
-          errorResult?.answer ||
-          errorMessage;
-      } catch {
-        // Keep default message.
-      }
+      const errorMessage =
+        await readErrorResponse(
+          response
+        );
 
       throw new Error(
         errorMessage
@@ -172,38 +312,477 @@ export async function sendMessageStream(
     }
 
 
-    /* -----------------------------------------------------
-       Streaming body required
-       ----------------------------------------------------- */
+    const responsePayload =
+      await response.json();
 
-    if (!response.body) {
+
+    return responsePayload;
+
+
+  } catch (error) {
+    if (
+      error?.name ===
+      "AbortError"
+    ) {
+      if (
+        abortManager
+          .wasExternallyAborted()
+      ) {
+        throw new Error(
+          "Request stopped."
+        );
+      }
+
+      if (
+        abortManager
+          .wasTimedOut()
+      ) {
+        throw new Error(
+          "The request took too long. Please try again."
+        );
+      }
+
       throw new Error(
-        "Streaming response is unavailable."
+        "The request was cancelled."
       );
     }
 
 
-    const reader =
+    if (
+      error instanceof TypeError &&
+      error.message ===
+        "Failed to fetch"
+    ) {
+      throw new Error(
+        (
+          "The AI service is temporarily unavailable. "
+          + "Please try again."
+        )
+      );
+    }
+
+
+    throw error;
+
+
+  } finally {
+    abortManager.cleanup();
+  }
+}
+
+
+// =========================================================
+// PARSE ONE SSE EVENT BLOCK
+//
+// Backend sends:
+//
+// data: {"type":"progress", ...}
+//
+// OR
+//
+// data: {"type":"result","data":{...}}
+//
+// OR
+//
+// data: {"type":"error","message":"..."}
+// =========================================================
+
+function parseSseEventBlock(
+  rawBlock
+) {
+  const cleanBlock =
+    String(
+      rawBlock || ""
+    ).trim();
+
+
+  if (!cleanBlock) {
+    return null;
+  }
+
+
+  const lines =
+    cleanBlock.split(
+      "\n"
+    );
+
+
+  const dataLines =
+    [];
+
+
+  for (
+    const rawLine
+    of lines
+  ) {
+    const line =
+      rawLine.trimEnd();
+
+
+    if (
+      !line.startsWith(
+        "data:"
+      )
+    ) {
+      continue;
+    }
+
+
+    dataLines.push(
+      line
+        .slice(5)
+        .trimStart()
+    );
+  }
+
+
+  if (
+    dataLines.length ===
+    0
+  ) {
+    return null;
+  }
+
+
+  const dataText =
+    dataLines.join(
+      "\n"
+    );
+
+
+  if (!dataText) {
+    return null;
+  }
+
+
+  try {
+    return JSON.parse(
+      dataText
+    );
+
+  } catch (error) {
+    console.error(
+      "Unable to parse SSE JSON:",
+      {
+        dataText,
+        error,
+      }
+    );
+
+
+    throw new Error(
+      "The AI service returned an invalid streaming response."
+    );
+  }
+}
+
+
+// =========================================================
+// PROCESS SSE EVENT
+//
+// Returns:
+// - actual result object when event is result
+// - null for progress / ignored events
+//
+// Throws:
+// - Error when backend sends type=error
+// =========================================================
+
+function processSseEvent(
+  event,
+  onProgress
+) {
+  if (
+    !event ||
+    typeof event !==
+      "object"
+  ) {
+    return null;
+  }
+
+
+  console.log(
+    "SSE event received:",
+    event
+  );
+
+
+  const eventType =
+    String(
+      event.type || ""
+    ).toLowerCase();
+
+
+  // -------------------------------------------------------
+  // PROGRESS
+  // -------------------------------------------------------
+
+  if (
+    eventType ===
+    "progress"
+  ) {
+    if (
+      typeof onProgress ===
+      "function"
+    ) {
+      onProgress(
+        event
+      );
+    }
+
+    return null;
+  }
+
+
+  // -------------------------------------------------------
+  // BACKEND ERROR
+  //
+  // Important:
+  // SSE HTTP status may still be 200 because the stream
+  // already started before backend processing failed.
+  // -------------------------------------------------------
+
+  if (
+    eventType ===
+    "error"
+  ) {
+    throw new Error(
+      event?.message ||
+      event?.detail ||
+      (
+        "The backend could not "
+        + "process the request."
+      )
+    );
+  }
+
+
+  // -------------------------------------------------------
+  // FINAL RESULT
+  //
+  // Current backend format:
+  //
+  // {
+  //   "type": "result",
+  //   "data": {
+  //      "engine": "SQL",
+  //      "answer": "...",
+  //      ...
+  //   }
+  // }
+  //
+  // App.jsx expects:
+  //
+  // response.engine
+  // response.answer
+  // response.rows
+  //
+  // Therefore we MUST return event.data.
+  // -------------------------------------------------------
+
+  if (
+    eventType ===
+    "result"
+  ) {
+    return (
+      event?.data ??
+      event?.result ??
+      null
+    );
+  }
+
+
+  // -------------------------------------------------------
+  // BACKWARD COMPATIBILITY
+  //
+  // Supports older backend versions that may return
+  // the result directly rather than wrapping it.
+  // -------------------------------------------------------
+
+  if (
+    event?.engine ||
+    event?.answer ||
+    event?.summary ||
+    event?.executive_summary ||
+    event?.rows ||
+    event?.generated_sql ||
+    event?.executed_sql
+  ) {
+    return event;
+  }
+
+
+  return null;
+}
+
+
+// =========================================================
+// STREAMING CHAT
+//
+// Existing use:
+//
+// sendMessageStream(
+//   question,
+//   conversationId,
+//   onProgress
+// )
+//
+// Future Stop button:
+//
+// sendMessageStream(
+//   question,
+//   conversationId,
+//   onProgress,
+//   abortController.signal
+// )
+// =========================================================
+
+export async function sendMessageStream(
+  question,
+  conversationId,
+  onProgress = null,
+  externalSignal = null
+) {
+  const cleanQuestion =
+    normalizeQuestion(
+      question
+    );
+
+
+  const abortManager =
+    createAbortManager(
+      externalSignal
+    );
+
+
+  let reader =
+    null;
+
+
+  try {
+    // =====================================================
+    // START SSE REQUEST
+    // =====================================================
+
+    const response =
+      await fetch(
+        buildApiUrl(
+          "/chat-stream"
+        ),
+        {
+          method:
+            "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+
+            "Accept":
+              "text/event-stream",
+          },
+
+          body:
+            JSON.stringify(
+              buildChatPayload(
+                cleanQuestion,
+                conversationId
+              )
+            ),
+
+          signal:
+            abortManager.signal,
+        }
+      );
+
+
+    // =====================================================
+    // HTTP ERROR
+    // =====================================================
+
+    if (!response.ok) {
+      const errorMessage =
+        await readErrorResponse(
+          response
+        );
+
+
+      throw new Error(
+        errorMessage
+      );
+    }
+
+
+    // =====================================================
+    // STREAM REQUIRED
+    // =====================================================
+
+    if (!response.body) {
+      throw new Error(
+        (
+          "The AI service did not "
+          + "return a streaming response."
+        )
+      );
+    }
+
+
+    // =====================================================
+    // VALIDATE CONTENT TYPE
+    // =====================================================
+
+    const contentType =
+      response.headers.get(
+        "content-type"
+      ) || "";
+
+
+    if (
+      !contentType.includes(
+        "text/event-stream"
+      )
+    ) {
+      console.warn(
+        (
+          "Expected text/event-stream "
+          + "but received:"
+        ),
+        contentType
+      );
+    }
+
+
+    // =====================================================
+    // STREAM READER
+    // =====================================================
+
+    reader =
       response.body.getReader();
 
+
     const decoder =
-      new TextDecoder("utf-8");
+      new TextDecoder(
+        "utf-8"
+      );
 
 
-    let buffer = "";
+    let buffer =
+      "";
 
-    let finalResult = null;
+
+    let finalResult =
+      null;
 
 
-    /* =====================================================
-       READ STREAM
-       ===================================================== */
+    // =====================================================
+    // READ STREAM
+    // =====================================================
 
     while (true) {
       const {
         value,
         done,
-      } = await reader.read();
+      } =
+        await reader.read();
 
 
       if (done) {
@@ -211,294 +790,255 @@ export async function sendMessageStream(
       }
 
 
-      buffer += decoder.decode(
-        value,
-        {
-          stream: true,
-        }
-      );
+      // ---------------------------------------------------
+      // Decode chunk
+      // ---------------------------------------------------
+
+      buffer +=
+        decoder.decode(
+          value,
+          {
+            stream: true,
+          }
+        );
 
 
-      /*
-       * SSE events are separated by a blank line.
-       *
-       * Support both:
-       *
-       * \n\n
-       *
-       * and Windows/network:
-       *
-       * \r\n\r\n
-       */
-
-      const eventBlocks =
-        buffer.split(/\r?\n\r?\n/);
-
-
-      /*
-       * Last part may be an incomplete event.
-       * Preserve it for the next network chunk.
-       */
+      // ---------------------------------------------------
+      // Normalize Windows / HTTP CRLF into LF.
+      //
+      // Backend currently writes:
+      //
+      // data: {...}\n\n
+      //
+      // But proxies may expose CRLF.
+      // ---------------------------------------------------
 
       buffer =
-        eventBlocks.pop() || "";
+        buffer.replace(
+          /\r\n/g,
+          "\n"
+        );
 
+
+      // ---------------------------------------------------
+      // Split complete SSE blocks
+      // ---------------------------------------------------
+
+      const blocks =
+        buffer.split(
+          "\n\n"
+        );
+
+
+      // ---------------------------------------------------
+      // Last item may be incomplete.
+      // Keep it for next network chunk.
+      // ---------------------------------------------------
+
+      buffer =
+        blocks.pop() ||
+        "";
+
+
+      // ---------------------------------------------------
+      // Process complete events
+      // ---------------------------------------------------
 
       for (
-        const eventBlock
-        of eventBlocks
+        const block
+        of blocks
       ) {
-        if (!eventBlock.trim()) {
-          continue;
-        }
-
-
-        const parsedEvent =
-          parseSseEvent(
-            eventBlock
+        const event =
+          parseSseEventBlock(
+            block
           );
 
 
-        if (!parsedEvent) {
+        if (!event) {
           continue;
         }
 
 
-        const {
-          eventType,
-          data,
-        } = parsedEvent;
+        const result =
+          processSseEvent(
+            event,
+            onProgress
+          );
 
 
-        /* -------------------------------------------------
-           PROGRESS EVENT
-
-           Backend sends:
-
-           event: progress
-           data: {"stage":"processing"}
-
-           Frontend will show only ONE line:
-
-           Processing your request...
-           ------------------------------------------------- */
-
-        if (
-          eventType ===
-          "progress"
-        ) {
-          if (
-            typeof onProgress ===
-            "function"
-          ) {
-            onProgress(
-              data
-            );
-          }
-
-          continue;
-        }
-
-
-        /* -------------------------------------------------
-           COMPLETED EVENT
-           ------------------------------------------------- */
-
-        if (
-          eventType ===
-          "completed"
-        ) {
+        if (result) {
           finalResult =
-            data?.result || null;
-
-          continue;
-        }
-
-
-        /* -------------------------------------------------
-           ERROR EVENT
-           ------------------------------------------------- */
-
-        if (
-          eventType ===
-          "error"
-        ) {
-          throw new Error(
-            data?.message ||
-              "The request could not be completed."
-          );
+            result;
         }
       }
     }
 
 
-    /* =====================================================
-       STREAM COMPLETED
-       ===================================================== */
+    // =====================================================
+    // FLUSH DECODER
+    // =====================================================
+
+    buffer +=
+      decoder.decode();
+
+
+    buffer =
+      buffer.replace(
+        /\r\n/g,
+        "\n"
+      );
+
+
+    // =====================================================
+    // PROCESS ANY FINAL BUFFERED EVENT
+    // =====================================================
+
+    if (
+      buffer.trim()
+    ) {
+      const remainingBlocks =
+        buffer.split(
+          "\n\n"
+        );
+
+
+      for (
+        const block
+        of remainingBlocks
+      ) {
+        if (
+          !block.trim()
+        ) {
+          continue;
+        }
+
+
+        const event =
+          parseSseEventBlock(
+            block
+          );
+
+
+        if (!event) {
+          continue;
+        }
+
+
+        const result =
+          processSseEvent(
+            event,
+            onProgress
+          );
+
+
+        if (result) {
+          finalResult =
+            result;
+        }
+      }
+    }
+
+
+    // =====================================================
+    // FINAL RESULT REQUIRED
+    // =====================================================
 
     if (!finalResult) {
       throw new Error(
-        "The streaming request ended without a result."
+        (
+          "The streaming request ended "
+          + "without a result."
+        )
       );
     }
 
 
-    /*
-     * Apply the same validation rules
-     * used by normal /chat.
-     */
-
-    validateBackendResult(
+    console.log(
+      "Final streaming result:",
       finalResult
     );
 
 
-    /*
-     * IMPORTANT:
-     *
-     * Return exactly the same response structure
-     * as sendMessage().
-     */
-
     return finalResult;
 
+
   } catch (error) {
+    // =====================================================
+    // ABORT / TIMEOUT
+    // =====================================================
 
     if (
       error?.name ===
       "AbortError"
     ) {
+      if (
+        abortManager
+          .wasExternallyAborted()
+      ) {
+        throw new Error(
+          "Request stopped."
+        );
+      }
+
+
+      if (
+        abortManager
+          .wasTimedOut()
+      ) {
+        throw new Error(
+          (
+            "The request took too long. "
+            + "Please try again."
+          )
+        );
+      }
+
+
       throw new Error(
-        "The request took too long. Please try again."
+        "The request was cancelled."
       );
     }
 
+
+    // =====================================================
+    // NETWORK FAILURE
+    // =====================================================
+
+    if (
+      error instanceof TypeError &&
+      error.message ===
+        "Failed to fetch"
+    ) {
+      throw new Error(
+        (
+          "The AI service is temporarily unavailable. "
+          + "Please try again."
+        )
+      );
+    }
+
+
+    // =====================================================
+    // BACKEND / SSE ERROR
+    // =====================================================
 
     throw error;
 
+
   } finally {
+    // =====================================================
+    // CLEANUP
+    // =====================================================
 
-    clearTimeout(
-      timeoutId
-    );
-  }
-}
-
-
-/* =========================================================
-   SSE PARSER
-   ========================================================= */
-
-function parseSseEvent(
-  eventBlock
-) {
-  const lines =
-    String(
-      eventBlock || ""
-    ).split(/\r?\n/);
+    abortManager.cleanup();
 
 
-  let eventType =
-    "message";
-
-  const dataLines = [];
-
-
-  for (const line of lines) {
-
-    if (
-      line.startsWith(
-        "event:"
-      )
-    ) {
-      eventType =
-        line
-          .slice(
-            "event:".length
-          )
-          .trim();
-
-      continue;
+    if (reader) {
+      try {
+        reader.releaseLock();
+      } catch {
+        // Nothing required.
+      }
     }
-
-
-    if (
-      line.startsWith(
-        "data:"
-      )
-    ) {
-      dataLines.push(
-        line
-          .slice(
-            "data:".length
-          )
-          .trim()
-      );
-    }
-  }
-
-
-  if (
-    dataLines.length === 0
-  ) {
-    return null;
-  }
-
-
-  const dataText =
-    dataLines.join("\n");
-
-
-  try {
-    return {
-      eventType,
-
-      data:
-        JSON.parse(
-          dataText
-        ),
-    };
-  } catch (error) {
-
-    console.error(
-      "Unable to parse SSE event:",
-      dataText,
-      error
-    );
-
-    return null;
-  }
-}
-
-
-/* =========================================================
-   COMMON BACKEND RESPONSE VALIDATION
-   ========================================================= */
-
-function validateBackendResult(
-  result
-) {
-  if (
-    result?.status ===
-    "error"
-  ) {
-    throw new Error(
-      result?.message ||
-        result?.answer ||
-        "The request could not be completed."
-    );
-  }
-
-
-  if (
-    result?.status ===
-    "blocked"
-  ) {
-    throw new Error(
-      result?.answer ||
-        result?.summary ||
-        result?.validation_message ||
-        "The generated SQL query was blocked."
-    );
   }
 }
