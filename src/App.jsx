@@ -1,40 +1,42 @@
+const AGENT_ID =
+  "EXECUTIVE";
+
+const NEW_CHAT_MARKER =
+  "__NEW_CHAT__";
+
+
 import {
   useEffect,
   useState,
 } from "react";
 
+
 import "./App.css";
 
+
 import Layout from "./components/layout/Layout";
-import ChatWindow from "./components/chat/ChatWindow";
-import ChatInput from "./components/ChatInput";
-import SuggestedQuestions from "./components/SuggestedQuestions";
+
 
 import {
   getCurrentUser,
 } from "./services/authService";
 
+
+import ChatWindow from "./components/chat/ChatWindow";
+import ChatInput from "./components/ChatInput";
+import SuggestedQuestions from "./components/SuggestedQuestions";
+
+
 import {
   sendMessageStream,
 } from "./services/api";
+
 
 import {
   createConversation,
   getConversations,
   getConversationMessages,
 } from "./services/conversationApi";
-
-
-// =========================================================
-// AGENT
-// =========================================================
-
-const AGENT_ID =
-  "EXECUTIVE";
-
-
-const ACTIVE_CONVERSATION_KEY =
-  "executive-active-conversation";
 
 
 // =========================================================
@@ -85,13 +87,122 @@ const suggestedQuestions = [
 
 
 // =========================================================
-// CREATE CONVERSATION TITLE
+// ACTIVE CONVERSATION STORAGE
+//
+// sessionStorage survives browser refresh,
+// but does not permanently retain state forever.
+//
+// This gives us:
+//
+// open conversation
+//       ↓
+// refresh
+//       ↓
+// reopen same conversation
+//
+// New Chat deliberately stores a special marker.
+// =========================================================
+
+function getConversationStorageKey(
+  userId
+) {
+  return (
+    `enterprise-ai:`
+    + `${AGENT_ID}:`
+    + `${userId}:`
+    + "activeConversation"
+  );
+}
+
+
+function rememberActiveConversation(
+  userId,
+  conversationId
+) {
+  if (
+    !userId ||
+    !conversationId
+  ) {
+    return;
+  }
+
+
+  try {
+
+    sessionStorage.setItem(
+      getConversationStorageKey(
+        userId
+      ),
+      conversationId
+    );
+
+  } catch (error) {
+
+    console.warn(
+      "Unable to persist active conversation:",
+      error
+    );
+  }
+}
+
+
+function rememberNewChat(
+  userId
+) {
+  if (!userId) {
+    return;
+  }
+
+
+  try {
+
+    sessionStorage.setItem(
+      getConversationStorageKey(
+        userId
+      ),
+      NEW_CHAT_MARKER
+    );
+
+  } catch (error) {
+
+    console.warn(
+      "Unable to persist New Chat state:",
+      error
+    );
+  }
+}
+
+
+function getRememberedConversation(
+  userId
+) {
+  if (!userId) {
+    return null;
+  }
+
+
+  try {
+
+    return sessionStorage.getItem(
+      getConversationStorageKey(
+        userId
+      )
+    );
+
+  } catch {
+
+    return null;
+  }
+}
+
+
+// =========================================================
+// CONVERSATION TITLE
 // =========================================================
 
 function createConversationTitle(
   question
 ) {
-
   const maximumLength =
     32;
 
@@ -100,7 +211,6 @@ function createConversationTitle(
     question.length <=
     maximumLength
   ) {
-
     return question;
   }
 
@@ -115,19 +225,17 @@ function createConversationTitle(
 
 
 // =========================================================
-// NORMALIZE ARRAY
+// ARRAY NORMALIZER
 // =========================================================
 
 function normalizeArrayValue(
   value
 ) {
-
   if (
     Array.isArray(
       value
     )
   ) {
-
     return value;
   }
 
@@ -164,13 +272,12 @@ function normalizeArrayValue(
 
 
 // =========================================================
-// NORMALIZE OBJECT
+// OBJECT NORMALIZER
 // =========================================================
 
 function normalizeObjectValue(
   value
 ) {
-
   if (
     value &&
     typeof value ===
@@ -179,7 +286,6 @@ function normalizeObjectValue(
       value
     )
   ) {
-
     return value;
   }
 
@@ -197,20 +303,16 @@ function normalizeObjectValue(
         );
 
 
-      if (
+      return (
         parsedValue &&
         typeof parsedValue ===
           "object" &&
         !Array.isArray(
           parsedValue
         )
-      ) {
-
-        return parsedValue;
-      }
-
-
-      return null;
+      )
+        ? parsedValue
+        : null;
 
 
     } catch {
@@ -231,7 +333,6 @@ function normalizeObjectValue(
 function normalizeResponsePayload(
   message
 ) {
-
   const rawPayload =
     message.ResponsePayload ??
     message.response_payload ??
@@ -245,7 +346,7 @@ function normalizeResponsePayload(
 
 
 // =========================================================
-// ENGINE
+// ENGINE NORMALIZER
 // =========================================================
 
 function normalizeEngine(
@@ -253,7 +354,6 @@ function normalizeEngine(
   responsePayload,
   role
 ) {
-
   const explicitEngine =
     responsePayload?.engine ??
     message.Engine ??
@@ -261,9 +361,7 @@ function normalizeEngine(
     null;
 
 
-  if (
-    explicitEngine
-  ) {
+  if (explicitEngine) {
 
     return String(
       explicitEngine
@@ -281,9 +379,8 @@ function normalizeEngine(
     String(
       queryType || ""
     ).toUpperCase() ===
-      "CHAT"
+    "CHAT"
   ) {
-
     return "CHAT";
   }
 
@@ -296,7 +393,6 @@ function normalizeEngine(
       message.generated_query
     )
   ) {
-
     return "SQL";
   }
 
@@ -305,7 +401,6 @@ function normalizeEngine(
     role ===
     "USER"
   ) {
-
     return null;
   }
 
@@ -321,19 +416,17 @@ function normalizeEngine(
 function normalizeHistoryMessage(
   message
 ) {
-
-  const role = (
+  const role = String(
     message.MessageRole ??
     message.message_role ??
     ""
   ).toUpperCase();
 
 
-  const executionStatus = (
+  const executionStatus =
     message.ExecutionStatus ??
     message.execution_status ??
-    ""
-  ).toLowerCase();
+    null;
 
 
   const responsePayload =
@@ -372,10 +465,41 @@ function normalizeHistoryMessage(
   const answer =
     responsePayload?.answer ??
     responsePayload?.summary ??
-    responsePayload?.executive_summary ??
+    responsePayload
+      ?.executive_summary ??
     message.MessageText ??
     message.message_text ??
     "";
+
+
+  // =======================================================
+  // STATUS
+  //
+  // Important:
+  //
+  // ExecutionStatus can now intentionally be NULL
+  // for an Azure OpenAI/runtime failure.
+  //
+  // The ResponsePayload still contains:
+  //
+  // status = error
+  // message = actual error
+  // =======================================================
+
+  const normalizedStatus =
+    responsePayload?.status ??
+    (
+      executionStatus
+        ? String(
+            executionStatus
+          ).toLowerCase()
+        : (
+            role ===
+              "ASSISTANT"
+              ? "success"
+              : null
+          )
+    );
 
 
   return {
@@ -385,62 +509,83 @@ function normalizeHistoryMessage(
       message.message_id ??
       crypto.randomUUID(),
 
+
     role:
       role ===
         "USER"
         ? "user"
         : "ai",
 
+
     engine,
+
 
     text:
       answer,
 
+
     answer,
+
 
     content:
       answer,
 
+
     executiveSummary:
-      responsePayload?.executive_summary ??
+      responsePayload
+        ?.executive_summary ??
       message.ExecutiveSummary ??
       message.executive_summary ??
       null,
 
+
     keyInsights:
       normalizeArrayValue(
-        responsePayload?.key_insights ??
+        responsePayload
+          ?.key_insights ??
         message.KeyInsights ??
         message.key_insights
       ),
 
+
     visual:
       normalizeObjectValue(
-        responsePayload?.visual ??
+        responsePayload
+          ?.visual ??
         message.Visual ??
         message.visual
       ),
 
+
     suggestions:
       normalizeArrayValue(
-        responsePayload?.suggestions ??
-        responsePayload?.suggested_questions ??
+        responsePayload
+          ?.suggestions ??
+        responsePayload
+          ?.suggested_questions ??
         message.Suggestions ??
         message.suggestions
       ),
 
+
     rows,
 
+
     generatedQuery:
-      responsePayload?.generated_sql ??
-      responsePayload?.executed_sql ??
+      responsePayload
+        ?.generated_sql ??
+      responsePayload
+        ?.executed_sql ??
       message.GeneratedQuery ??
       message.generated_query ??
       null,
 
+
     executedQuery:
-      responsePayload?.executed_sql ??
+      responsePayload
+        ?.executed_sql ??
       null,
+
 
     queryType:
       message.QueryType ??
@@ -448,8 +593,10 @@ function normalizeHistoryMessage(
       engine ??
       null,
 
+
     source:
-      responsePayload?.source ??
+      responsePayload
+        ?.source ??
       message.DataSource ??
       message.data_source ??
       (
@@ -459,106 +606,129 @@ function normalizeHistoryMessage(
           : "Azure SQL"
       ),
 
+
     status:
-      responsePayload?.status ??
-      executionStatus ??
-      (
-        role ===
-          "ASSISTANT"
-          ? "success"
-          : null
-      ),
+      normalizedStatus,
+
 
     executionTime:
-      responsePayload?.execution_time_ms ??
+      responsePayload
+        ?.execution_time_ms ??
       message.ExecutionTimeMs ??
       message.execution_time_ms ??
       null,
 
+
     timings:
-      responsePayload?.timings ??
+      responsePayload
+        ?.timings ??
       null,
 
+
     errorMessage:
-      responsePayload?.message ??
+      responsePayload
+        ?.message ??
       message.ErrorMessage ??
       message.error_message ??
       null,
 
+
     rowCount:
-      responsePayload?.row_count ??
+      responsePayload
+        ?.row_count ??
       message.RowCount ??
       message.row_count ??
       rows.length,
 
+
     requestPlan:
-      responsePayload?.request_plan ??
+      responsePayload
+        ?.request_plan ??
       null,
   };
 }
 
 
 // =========================================================
-// EXECUTIVE APP
+// APP
 // =========================================================
 
 function App() {
 
-  // =====================================================
+  // =======================================================
   // AUTHENTICATED USER
-  // =====================================================
+  // =======================================================
 
   const [
     currentUser,
     setCurrentUser,
-  ] = useState(null);
+  ] =
+    useState(
+      null
+    );
 
 
   const [
     userLoading,
     setUserLoading,
-  ] = useState(true);
+  ] =
+    useState(
+      true
+    );
 
 
   const [
     userError,
     setUserError,
-  ] = useState(null);
+  ] =
+    useState(
+      null
+    );
 
 
-  // =====================================================
+  // =======================================================
   // CHAT STATE
-  // =====================================================
+  // =======================================================
 
   const [
     messages,
     setMessages,
-  ] = useState([
-    initialMessage,
-  ]);
+  ] =
+    useState([
+      initialMessage,
+    ]);
 
 
   const [
     isLoading,
     setIsLoading,
-  ] = useState(false);
+  ] =
+    useState(
+      false
+    );
 
 
   const [
     conversations,
     setConversations,
-  ] = useState([]);
+  ] =
+    useState(
+      []
+    );
 
 
   const [
     activeConversationId,
     setActiveConversationId,
-  ] = useState(null);
+  ] =
+    useState(
+      null
+    );
 
 
-  // =====================================================
-  // LOAD AUTHENTICATED USER
-  // =====================================================
+  // =======================================================
+  // LOAD ENTRA USER
+  // =======================================================
 
   useEffect(
     () => {
@@ -602,9 +772,7 @@ function App() {
           );
 
 
-        } catch (
-          error
-        ) {
+        } catch (error) {
 
           console.error(
             "Unable to load authenticated user:",
@@ -635,9 +803,23 @@ function App() {
   );
 
 
-  // =====================================================
-  // LOAD HISTORY AFTER USER AVAILABLE
-  // =====================================================
+  // =======================================================
+  // INITIALIZE CONVERSATION HISTORY
+  //
+  // This is the important refresh fix.
+  //
+  // Previous code:
+  //
+  // GET /conversations
+  // → sidebar only
+  //
+  // New code:
+  //
+  // GET /conversations
+  // → find previously active conversation
+  // → GET /conversations/{id}/messages
+  // → restore messages
+  // =======================================================
 
   useEffect(
     () => {
@@ -650,9 +832,7 @@ function App() {
       }
 
 
-      loadConversationHistory(
-        true
-      );
+      initializeConversationHistory();
 
     },
     [
@@ -661,19 +841,266 @@ function App() {
   );
 
 
-  // =====================================================
-  // LOAD EXECUTIVE CONVERSATIONS
-  //
-  // restoreActive=true:
-  // used only during initial page load / refresh.
-  //
-  // restoreActive=false:
-  // only refreshes sidebar after sending a question.
-  // =====================================================
+  // =======================================================
+  // INITIAL HISTORY LOAD + RESTORE
+  // =======================================================
 
-  async function loadConversationHistory(
-    restoreActive = false
-  ) {
+  async function initializeConversationHistory() {
+
+    if (
+      !currentUser?.id
+    ) {
+
+      return;
+    }
+
+
+    setIsLoading(
+      true
+    );
+
+
+    try {
+
+      console.log(
+        "Initializing Executive conversations:",
+        currentUser.id
+      );
+
+
+      // ===================================================
+      // LOAD SIDEBAR
+      // ===================================================
+
+      const history =
+        await getConversations(
+          currentUser.id,
+          AGENT_ID
+        );
+
+
+      const conversationList =
+        Array.isArray(
+          history
+        )
+          ? history
+          : [];
+
+
+      setConversations(
+        conversationList
+      );
+
+
+      console.log(
+        "Executive conversations loaded:",
+        conversationList.length
+      );
+
+
+      // ===================================================
+      // READ LAST ACTIVE CONVERSATION
+      // ===================================================
+
+      const rememberedConversationId =
+        getRememberedConversation(
+          currentUser.id
+        );
+
+
+      console.log(
+        "Remembered Executive conversation:",
+        rememberedConversationId
+      );
+
+
+      // ===================================================
+      // USER EXPLICITLY SELECTED NEW CHAT
+      //
+      // Do not automatically reopen old conversation.
+      // ===================================================
+
+      if (
+        rememberedConversationId ===
+        NEW_CHAT_MARKER
+      ) {
+
+        setActiveConversationId(
+          null
+        );
+
+
+        setMessages([
+          initialMessage,
+        ]);
+
+
+        return;
+      }
+
+
+      // ===================================================
+      // DETERMINE CONVERSATION TO RESTORE
+      //
+      // 1. Previously active conversation
+      // 2. Most recent conversation as fallback
+      // ===================================================
+
+      let conversationToRestore =
+        null;
+
+
+      if (
+        rememberedConversationId
+      ) {
+
+        const exists =
+          conversationList.some(
+            (conversation) =>
+              conversation.id ===
+              rememberedConversationId
+          );
+
+
+        if (exists) {
+
+          conversationToRestore =
+            rememberedConversationId;
+        }
+      }
+
+
+      // ---------------------------------------------------
+      // No remembered ID yet.
+      //
+      // This handles the first refresh immediately after
+      // deploying this change.
+      // ---------------------------------------------------
+
+      if (
+        !conversationToRestore &&
+        conversationList.length > 0
+      ) {
+
+        conversationToRestore =
+          conversationList[0].id;
+      }
+
+
+      // ===================================================
+      // NO CONVERSATIONS
+      // ===================================================
+
+      if (
+        !conversationToRestore
+      ) {
+
+        setActiveConversationId(
+          null
+        );
+
+
+        setMessages([
+          initialMessage,
+        ]);
+
+
+        return;
+      }
+
+
+      // ===================================================
+      // LOAD MESSAGES
+      // ===================================================
+
+      console.log(
+        "Restoring Executive conversation:",
+        conversationToRestore
+      );
+
+
+      const messageHistory =
+        await getConversationMessages(
+          conversationToRestore
+        );
+
+
+      console.log(
+        "Restored Executive messages:",
+        messageHistory
+      );
+
+
+      const formattedMessages =
+        Array.isArray(
+          messageHistory
+        )
+          ? messageHistory.map(
+              normalizeHistoryMessage
+            )
+          : [];
+
+
+      setActiveConversationId(
+        conversationToRestore
+      );
+
+
+      rememberActiveConversation(
+        currentUser.id,
+        conversationToRestore
+      );
+
+
+      if (
+        formattedMessages.length > 0
+      ) {
+
+        setMessages(
+          formattedMessages
+        );
+
+
+      } else {
+
+        setMessages([
+          initialMessage,
+        ]);
+      }
+
+
+    } catch (error) {
+
+      console.error(
+        "Unable to initialize Executive history:",
+        error
+      );
+
+
+      setMessages([
+        initialMessage,
+      ]);
+
+
+    } finally {
+
+      setIsLoading(
+        false
+      );
+    }
+  }
+
+
+  // =======================================================
+  // REFRESH SIDEBAR ONLY
+  //
+  // Important:
+  //
+  // This function is used after a message is sent.
+  // It does NOT reload all messages unnecessarily.
+  // =======================================================
+
+  async function loadConversationHistory() {
 
     if (
       !currentUser?.id
@@ -685,20 +1112,6 @@ function App() {
 
     try {
 
-      console.log(
-        "Loading Executive conversation history:",
-        {
-          userId:
-            currentUser.id,
-
-          agentId:
-            AGENT_ID,
-
-          restoreActive,
-        }
-      );
-
-
       const history =
         await getConversations(
           currentUser.id,
@@ -706,123 +1119,28 @@ function App() {
         );
 
 
-      const normalizedHistory =
+      setConversations(
         Array.isArray(
           history
         )
           ? history
-          : [];
-
-
-      setConversations(
-        normalizedHistory
+          : []
       );
 
 
-      // =================================================
-      // SIDEBAR ONLY REFRESH
-      // =================================================
-
-      if (
-        !restoreActive
-      ) {
-
-        return;
-      }
-
-
-      // =================================================
-      // RESTORE ACTIVE CONVERSATION AFTER PAGE REFRESH
-      // =================================================
-
-      const storedConversationId =
-        sessionStorage.getItem(
-          ACTIVE_CONVERSATION_KEY
-        );
-
-
-      if (
-        !storedConversationId
-      ) {
-
-        return;
-      }
-
-
-      const conversationExists =
-        normalizedHistory.some(
-          (
-            conversation
-          ) =>
-            conversation.id ===
-            storedConversationId
-        );
-
-
-      if (
-        !conversationExists
-      ) {
-
-        sessionStorage.removeItem(
-          ACTIVE_CONVERSATION_KEY
-        );
-
-
-        return;
-      }
-
-
-      const historyMessages =
-        await getConversationMessages(
-          storedConversationId
-        );
-
-
-      const formattedMessages =
-        Array.isArray(
-          historyMessages
-        )
-          ? historyMessages.map(
-              normalizeHistoryMessage
-            )
-          : [];
-
-
-      setActiveConversationId(
-        storedConversationId
-      );
-
-
-      setMessages(
-        formattedMessages.length > 0
-          ? formattedMessages
-          : [
-              initialMessage,
-            ]
-      );
-
-
-      console.log(
-        "Executive conversation restored:",
-        storedConversationId
-      );
-
-
-    } catch (
-      error
-    ) {
+    } catch (error) {
 
       console.error(
-        "Unable to load Executive conversation history:",
+        "Unable to refresh Executive conversation history:",
         error
-      );      
+      );
     }
   }
 
 
-  // =====================================================
-  // CREATE / REUSE CONVERSATION
-  // =====================================================
+  // =======================================================
+  // ENSURE CONVERSATION
+  // =======================================================
 
   async function ensureConversation(
     question
@@ -831,12 +1149,6 @@ function App() {
     if (
       activeConversationId
     ) {
-
-      sessionStorage.setItem(
-        ACTIVE_CONVERSATION_KEY,
-        activeConversationId
-      );
-
 
       return activeConversationId;
     }
@@ -881,23 +1193,26 @@ function App() {
     );
 
 
-    sessionStorage.setItem(
-      ACTIVE_CONVERSATION_KEY,
+    // -----------------------------------------------------
+    // Remember immediately.
+    //
+    // Refresh during/after processing still restores
+    // this conversation.
+    // -----------------------------------------------------
+
+    rememberActiveConversation(
+      currentUser.id,
       newConversation.id
     );
 
 
     setConversations(
-      (
-        previous
-      ) => [
+      (previous) => [
 
         newConversation,
 
         ...previous.filter(
-          (
-            conversation
-          ) =>
+          (conversation) =>
             conversation.id !==
             newConversation.id
         ),
@@ -910,18 +1225,16 @@ function App() {
   }
 
 
-  // =====================================================
+  // =======================================================
   // SEND QUESTION
-  // =====================================================
+  // =======================================================
 
   async function handleSend(
     question
   ) {
 
     const cleanQuestion =
-      String(
-        question || ""
-      ).trim();
+      question?.trim();
 
 
     if (
@@ -951,9 +1264,49 @@ function App() {
     );
 
 
-    // ===================================================
-    // SHOW QUESTION IMMEDIATELY
-    // ===================================================
+    let conversationId =
+      null;
+
+
+    // =====================================================
+    // ENSURE CONVERSATION
+    // =====================================================
+
+    try {
+
+      conversationId =
+        await ensureConversation(
+          cleanQuestion
+        );
+
+
+    } catch (error) {
+
+      setIsLoading(
+        false
+      );
+
+
+      console.error(
+        "Unable to create conversation:",
+        error
+      );
+
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to create conversation."
+      );
+
+
+      return;
+    }
+
+
+    // =====================================================
+    // USER MESSAGE
+    // =====================================================
 
     const userMessage = {
 
@@ -968,14 +1321,16 @@ function App() {
     };
 
 
+    // =====================================================
+    // TEMPORARY LOADING MESSAGE
+    // =====================================================
+
     const loadingId =
       crypto.randomUUID();
 
 
     setMessages(
-      (
-        previous
-      ) => [
+      (previous) => [
 
         ...previous,
 
@@ -992,7 +1347,7 @@ function App() {
             "PLANNER",
 
           text:
-            "Understanding your question...",
+            "Processing your request...",
 
           isLoading:
             true,
@@ -1004,67 +1359,30 @@ function App() {
 
     try {
 
-      // =================================================
-      // CREATE / REUSE CONVERSATION
-      // =================================================
-
-      const conversationId =
-        await ensureConversation(
-          cleanQuestion
-        );
-
-
-      // =================================================
-      // UPDATE THINKING STATE
-      // =================================================
-
-      setMessages(
-        (
-          previous
-        ) =>
-          previous.map(
-            (
-              message
-            ) =>
-              message.id ===
-                loadingId
-                ? {
-                    ...message,
-
-                    text:
-                      "Analyzing the relevant business data...",
-                  }
-                : message
-          )
-      );
-
-
-      // =================================================
+      // ===================================================
       // SSE REQUEST
-      // =================================================
+      // ===================================================
 
       const response =
         await sendMessageStream(
+
           cleanQuestion,
+
           conversationId,
 
           () => {
 
             setMessages(
-              (
-                previous
-              ) =>
+              (previous) =>
                 previous.map(
-                  (
-                    message
-                  ) =>
+                  (message) =>
                     message.id ===
-                      loadingId
+                    loadingId
                       ? {
                           ...message,
 
                           text:
-                            "Preparing the response...",
+                            "Processing your request...",
                         }
                       : message
                 )
@@ -1073,9 +1391,9 @@ function App() {
         );
 
 
-      // =================================================
+      // ===================================================
       // ROWS
-      // =================================================
+      // ===================================================
 
       const rows =
         Array.isArray(
@@ -1091,31 +1409,31 @@ function App() {
             );
 
 
-      // =================================================
+      // ===================================================
       // ENGINE
-      // =================================================
+      // ===================================================
 
       const responseEngine =
         String(
           response?.engine ||
           (
             rows.length > 0 ||
-            response?.generated_sql ||
-            response?.executed_sql
+            response?.generated_sql
               ? "SQL"
               : "CHAT"
           )
         ).toUpperCase();
 
 
-      // =================================================
+      // ===================================================
       // ANSWER
-      // =================================================
+      // ===================================================
 
       const answer =
         response?.answer ||
         response?.summary ||
-        response?.executive_summary ||
+        response
+          ?.executive_summary ||
         (
           responseEngine ===
             "CHAT"
@@ -1124,9 +1442,9 @@ function App() {
         );
 
 
-      // =================================================
+      // ===================================================
       // ASSISTANT MESSAGE
-      // =================================================
+      // ===================================================
 
       const assistantMessage = {
 
@@ -1147,9 +1465,12 @@ function App() {
         content:
           answer,
 
+
         executiveSummary:
-          response?.executive_summary ||
+          response
+            ?.executive_summary ??
           null,
+
 
         keyInsights:
           Array.isArray(
@@ -1157,6 +1478,7 @@ function App() {
           )
             ? response.key_insights
             : [],
+
 
         visual:
           (
@@ -1167,6 +1489,7 @@ function App() {
             ? response.visual
             : null,
 
+
         suggestions:
           Array.isArray(
             response?.suggestions
@@ -1174,25 +1497,32 @@ function App() {
             ? response.suggestions
             : (
                 Array.isArray(
-                  response?.suggested_questions
+                  response
+                    ?.suggested_questions
                 )
-                  ? response.suggested_questions
+                  ? response
+                      .suggested_questions
                   : []
               ),
 
+
         rows,
+
 
         generatedQuery:
           response?.generated_sql ||
           response?.executed_sql ||
           null,
 
+
         executedQuery:
           response?.executed_sql ||
           null,
 
+
         queryType:
           responseEngine,
+
 
         source:
           response?.source ||
@@ -1203,119 +1533,148 @@ function App() {
               : "Azure SQL"
           ),
 
+
         rowCount:
           response?.row_count ??
           rows.length,
 
+
         executionTime:
-          response?.execution_time_ms ??
-          response?.timings?.request_total_ms ??
+          response
+            ?.execution_time_ms ??
+          response
+            ?.timings
+            ?.request_total_ms ??
           null,
+
 
         timings:
-          response?.timings ||
+          response?.timings ??
           null,
+
 
         status:
-          response?.status ||
+          response?.status ??
           "success",
 
+
         errorMessage:
-          response?.message ||
+          response?.message ??
           null,
 
+
         requestPlan:
-          response?.request_plan ||
+          response?.request_plan ??
           null,
       };
 
 
-      // =================================================
+      // ===================================================
       // REPLACE LOADING MESSAGE
-      // =================================================
+      // ===================================================
 
       setMessages(
-        (
-          previous
-        ) =>
+        (previous) =>
           previous.map(
-            (
-              message
-            ) =>
+            (message) =>
               message.id ===
-                loadingId
+              loadingId
                 ? assistantMessage
                 : message
           )
       );
 
 
-      // =================================================
-      // REFRESH SIDEBAR ONLY
-      // =================================================
+      // ===================================================
+      // KEEP CURRENT CONVERSATION FOR REFRESH
+      // ===================================================
 
-      await loadConversationHistory(
-        false
+      rememberActiveConversation(
+        currentUser.id,
+        conversationId
       );
 
 
-    } catch (
-      error
-    ) {
+      // ===================================================
+      // REFRESH SIDEBAR
+      // ===================================================
+
+      await loadConversationHistory();
+
+
+    } catch (error) {
 
       console.error(
-        "Unable to process Executive request:",
+        "Unable to process chat request:",
         error
       );
 
 
+      const errorMessage = {
+
+        id:
+          crypto.randomUUID(),
+
+        role:
+          "ai",
+
+        engine:
+          "SYSTEM",
+
+        text:
+          error instanceof Error
+            ? error.message
+            : (
+                "Unable to process the "
+                + "request. Please try again."
+              ),
+
+        status:
+          "error",
+
+        source:
+          "System",
+
+        rows:
+          [],
+
+        keyInsights:
+          [],
+
+        suggestions:
+          [],
+
+        visual:
+          null,
+      };
+
+
       setMessages(
-        (
-          previous
-        ) =>
+        (previous) =>
           previous.map(
-            (
-              message
-            ) =>
+            (message) =>
               message.id ===
-                loadingId
-                ? {
-
-                    id:
-                      crypto.randomUUID(),
-
-                    role:
-                      "ai",
-
-                    engine:
-                      "SYSTEM",
-
-                    text:
-                      error instanceof Error
-                        ? error.message
-                        : "Unable to process the request.",
-
-                    status:
-                      "error",
-
-                    source:
-                      "System",
-
-                    rows:
-                      [],
-
-                    keyInsights:
-                      [],
-
-                    suggestions:
-                      [],
-
-                    visual:
-                      null,
-                  }
+              loadingId
+                ? errorMessage
                 : message
           )
       );
+
+
+      // ---------------------------------------------------
+      // Conversation itself still exists.
+      // Remember it so refresh restores persisted messages.
+      // ---------------------------------------------------
+
+      if (
+        conversationId
+      ) {
+
+        rememberActiveConversation(
+          currentUser.id,
+          conversationId
+        );
+      }
 
 
     } finally {
@@ -1327,9 +1686,9 @@ function App() {
   }
 
 
-  // =====================================================
+  // =======================================================
   // NEW CHAT
-  // =====================================================
+  // =======================================================
 
   function handleNewChat() {
 
@@ -1341,11 +1700,6 @@ function App() {
     }
 
 
-    sessionStorage.removeItem(
-      ACTIVE_CONVERSATION_KEY
-    );
-
-
     setActiveConversationId(
       null
     );
@@ -1354,12 +1708,24 @@ function App() {
     setMessages([
       initialMessage,
     ]);
+
+
+    // -----------------------------------------------------
+    // Important:
+    //
+    // If user clicks New Chat and refreshes before asking
+    // anything, don't automatically reopen an old chat.
+    // -----------------------------------------------------
+
+    rememberNewChat(
+      currentUser?.id
+    );
   }
 
 
-  // =====================================================
-  // OPEN PREVIOUS CONVERSATION
-  // =====================================================
+  // =======================================================
+  // HISTORY CLICK
+  // =======================================================
 
   async function handleHistoryClick(
     conversationId
@@ -1381,10 +1747,22 @@ function App() {
 
     try {
 
+      console.log(
+        "Loading Executive messages:",
+        conversationId
+      );
+
+
       const history =
         await getConversationMessages(
           conversationId
         );
+
+
+      console.log(
+        "Executive messages loaded:",
+        history
+      );
 
 
       const formattedMessages =
@@ -1402,24 +1780,30 @@ function App() {
       );
 
 
-      sessionStorage.setItem(
-        ACTIVE_CONVERSATION_KEY,
+      rememberActiveConversation(
+        currentUser.id,
         conversationId
       );
 
 
-      setMessages(
+      if (
         formattedMessages.length > 0
-          ? formattedMessages
-          : [
-              initialMessage,
-            ]
-      );
+      ) {
+
+        setMessages(
+          formattedMessages
+        );
 
 
-    } catch (
-      error
-    ) {
+      } else {
+
+        setMessages([
+          initialMessage,
+        ]);
+      }
+
+
+    } catch (error) {
 
       console.error(
         "Unable to load conversation:",
@@ -1430,7 +1814,10 @@ function App() {
       alert(
         error instanceof Error
           ? error.message
-          : "Unable to load conversation history."
+          : (
+              "Unable to load "
+              + "conversation history."
+            )
       );
 
 
@@ -1443,16 +1830,15 @@ function App() {
   }
 
 
-  // =====================================================
+  // =======================================================
   // USER LOADING
-  // =====================================================
+  // =======================================================
 
   if (
     userLoading
   ) {
 
     return (
-
       <div
         style={{
           height:
@@ -1474,17 +1860,15 @@ function App() {
             "#174779",
         }}
       >
-
         Loading your profile...
-
       </div>
     );
   }
 
 
-  // =====================================================
+  // =======================================================
   // USER ERROR
-  // =====================================================
+  // =======================================================
 
   if (
     userError ||
@@ -1492,7 +1876,6 @@ function App() {
   ) {
 
     return (
-
       <div
         style={{
           height:
@@ -1532,9 +1915,9 @@ function App() {
   }
 
 
-  // =====================================================
-  // UI
-  // =====================================================
+  // =======================================================
+  // APPLICATION
+  // =======================================================
 
   return (
 
@@ -1616,9 +1999,8 @@ function App() {
           className=
             "chat-footer"
         >
-
-          AI-generated answers and insights may require business validation.
-
+          AI-generated answers and insights
+          may require business validation.
         </div>
 
       </div>
