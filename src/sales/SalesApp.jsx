@@ -3,7 +3,7 @@ import {
   useState,
 } from "react";
 
-import "../App.css";
+import "../components/styles/SalesApp.css";
 
 import Layout
   from "../components/layout/Layout";
@@ -50,7 +50,6 @@ import {
 import {
   uploadSalesRecording,
   transcribeSalesRecording,
-  summarizeSalesTranscript,
 } from "../services/salesRecordingApi";
 
 
@@ -61,16 +60,15 @@ import {
 
 import {
   startSalesVisit,
+  completeSalesVisit,
 } from "../services/salesVisitApi";
 
 
 // =========================================================
-// AGENT
+// SALES AGENT CONSTANTS
 // =========================================================
 
-const AGENT_ID =
-  "SALES";
-
+const AGENT_ID = "SALES";
 
 const ACTIVE_CONVERSATION_KEY =
   "sales-active-conversation";
@@ -81,64 +79,54 @@ const ACTIVE_CONVERSATION_KEY =
 // =========================================================
 
 const salesInitialMessage = {
+  id: "sales-welcome",
 
-  id:
-    "sales-welcome",
+  role: "ai",
 
-  role:
-    "ai",
-
-  engine:
-    "CHAT",
+  engine: "CHAT",
 
   text:
     "Hi! I'm your Sales Intelligence Agent. " +
-    "How can I assist you today?",
+    "Select a customer for a business snapshot, " +
+    "or ask me a customer-specific sales question.",
 
-  source:
-    "GPT",
+  source: "GPT",
 
-  status:
-    "success",
+  status: "success",
 
-  rows:
-    [],
+  rows: [],
 
-  keyInsights:
-    [],
+  keyInsights: [],
 
-  suggestions:
-    [],
+  suggestions: [],
 };
 
 
 // =========================================================
-// CREATE TITLE
+// CREATE CONVERSATION TITLE
 // =========================================================
 
 function createConversationTitle(
   question
 ) {
+  const maximumLength = 32;
 
-  const maximumLength =
-    32;
-
+  const cleanQuestion =
+    String(
+      question || ""
+    ).trim();
 
   if (
-    question.length <=
+    cleanQuestion.length <=
     maximumLength
   ) {
-
-    return question;
+    return cleanQuestion;
   }
 
-
-  return (
-    `${question.slice(
-      0,
-      maximumLength
-    )}...`
-  );
+  return `${cleanQuestion.slice(
+    0,
+    maximumLength
+  )}...`;
 }
 
 
@@ -149,43 +137,33 @@ function createConversationTitle(
 function normalizeArrayValue(
   value
 ) {
-
   if (
     Array.isArray(
       value
     )
   ) {
-
     return value;
   }
-
 
   if (
     typeof value ===
     "string"
   ) {
-
     try {
-
       const parsedValue =
         JSON.parse(
           value
         );
-
 
       return Array.isArray(
         parsedValue
       )
         ? parsedValue
         : [];
-
-
     } catch {
-
       return [];
     }
   }
-
 
   return [];
 }
@@ -198,7 +176,6 @@ function normalizeArrayValue(
 function normalizeObjectValue(
   value
 ) {
-
   if (
     value &&
     typeof value ===
@@ -207,23 +184,18 @@ function normalizeObjectValue(
       value
     )
   ) {
-
     return value;
   }
-
 
   if (
     typeof value ===
     "string"
   ) {
-
     try {
-
       const parsedValue =
         JSON.parse(
           value
         );
-
 
       if (
         parsedValue &&
@@ -233,33 +205,26 @@ function normalizeObjectValue(
           parsedValue
         )
       ) {
-
         return parsedValue;
       }
 
-
       return null;
-
-
     } catch {
-
       return null;
     }
   }
-
 
   return null;
 }
 
 
 // =========================================================
-// NORMALIZE HISTORY
+// NORMALIZE HISTORY MESSAGE
 // =========================================================
 
 function normalizeHistoryMessage(
   message
 ) {
-
   const role = (
     message.MessageRole ??
     message.message_role ??
@@ -304,8 +269,7 @@ function normalizeHistoryMessage(
           explicitEngine
         ).toUpperCase()
       : (
-          role ===
-            "USER"
+          role === "USER"
             ? null
             : (
                 generatedQuery
@@ -325,27 +289,28 @@ function normalizeHistoryMessage(
 
 
   return {
-
     id:
       message.MessageId ??
       message.message_id ??
       crypto.randomUUID(),
 
     role:
-      role ===
-        "USER"
+      role === "USER"
         ? "user"
         : "ai",
 
     engine,
 
-    text:
-      answer,
+    text: answer,
 
     answer,
 
-    content:
-      answer,
+    content: answer,
+
+    responseMode:
+      responsePayload?.response_mode ??
+      responsePayload?.responseMode ??
+      "text",
 
     executiveSummary:
       responsePayload?.executive_summary ??
@@ -394,8 +359,7 @@ function normalizeHistoryMessage(
       message.DataSource ??
       message.data_source ??
       (
-        engine ===
-          "CHAT"
+        engine === "CHAT"
           ? "GPT"
           : "Azure SQL"
       ),
@@ -405,14 +369,14 @@ function normalizeHistoryMessage(
       message.ExecutionStatus ??
       message.execution_status ??
       (
-        role ===
-          "ASSISTANT"
+        role === "ASSISTANT"
           ? "success"
           : null
       ),
 
     executionTime:
-      responsePayload?.execution_time_ms ??
+      responsePayload
+        ?.execution_time_ms ??
       message.ExecutionTimeMs ??
       message.execution_time_ms ??
       null,
@@ -435,13 +399,59 @@ function normalizeHistoryMessage(
 
 
 // =========================================================
+// SALES INSIGHT SECTION
+// =========================================================
+
+function SalesInsightSection({
+  title,
+  items,
+}) {
+  if (
+    !Array.isArray(
+      items
+    ) ||
+    items.length === 0
+  ) {
+    return null;
+  }
+
+  return (
+    <div
+      className="sales-insight-section"
+    >
+      <strong>
+        {title}
+      </strong>
+
+      <ul>
+        {items.map(
+          (
+            item,
+            index
+          ) => (
+            <li
+              key={
+                `${title}-${index}-${item}`
+              }
+            >
+              {item}
+            </li>
+          )
+        )}
+      </ul>
+    </div>
+  );
+}
+
+
+// =========================================================
 // SALES APP
 // =========================================================
 
 function SalesApp() {
 
   // =====================================================
-  // USER
+  // AUTHENTICATED USER
   // =====================================================
 
   const [
@@ -494,6 +504,10 @@ function SalesApp() {
 
   // =====================================================
   // RESPONSE MODE
+  //
+  // text
+  // voice
+  // podcast
   // =====================================================
 
   const [
@@ -533,7 +547,7 @@ function SalesApp() {
 
 
   // =====================================================
-  // VISIT
+  // ACTIVE VISIT
   // =====================================================
 
   const [
@@ -551,6 +565,38 @@ function SalesApp() {
   const [
     startVisitError,
     setStartVisitError,
+  ] = useState(null);
+
+
+  // =====================================================
+  // COMPLETE VISIT
+  // =====================================================
+
+  const [
+    isEndingVisit,
+    setIsEndingVisit,
+  ] = useState(false);
+
+
+  const [
+    endVisitError,
+    setEndVisitError,
+  ] = useState(null);
+
+
+  const [
+    completedVisit,
+    setCompletedVisit,
+  ] = useState(null);
+
+
+  // =====================================================
+  // VISIT INSIGHTS
+  // =====================================================
+
+  const [
+    visitInsights,
+    setVisitInsights,
   ] = useState(null);
 
 
@@ -583,21 +629,9 @@ function SalesApp() {
 
 
   const [
-    isSummarizing,
-    setIsSummarizing,
-  ] = useState(false);
-
-
-  const [
-    transcription,
-    setTranscription,
-  ] = useState(null);
-
-
-  const [
-    conversationHighlights,
-    setConversationHighlights,
-  ] = useState([]);
+    completedRecordingCount,
+    setCompletedRecordingCount,
+  ] = useState(0);
 
 
   const [
@@ -607,60 +641,48 @@ function SalesApp() {
 
 
   // =====================================================
-  // AUTH
+  // LOAD AUTHENTICATED USER
   // =====================================================
 
   useEffect(
     () => {
-
       async function loadAuthenticatedUser() {
-
         try {
-
           setUserLoading(
             true
           );
-
 
           setUserError(
             null
           );
 
-
           const authenticatedUser =
             await getCurrentUser();
-
 
           if (
             !authenticatedUser?.id
           ) {
-
             throw new Error(
               "Authenticated Entra user could not be loaded."
             );
           }
-
 
           console.log(
             "Sales authenticated user:",
             authenticatedUser
           );
 
-
           setCurrentUser(
             authenticatedUser
           );
 
-
         } catch (
           error
         ) {
-
           console.error(
             "Unable to load Sales Agent user:",
             error
           );
-
 
           setUserError(
             error instanceof Error
@@ -668,18 +690,14 @@ function SalesApp() {
               : "Unable to load authenticated user."
           );
 
-
         } finally {
-
           setUserLoading(
             false
           );
         }
       }
 
-
       loadAuthenticatedUser();
-
     },
     []
   );
@@ -691,19 +709,15 @@ function SalesApp() {
 
   useEffect(
     () => {
-
       if (
         !currentUser?.id
       ) {
-
         return;
       }
-
 
       loadConversationHistory(
         true
       );
-
     },
     [
       currentUser?.id,
@@ -712,29 +726,24 @@ function SalesApp() {
 
 
   // =====================================================
-  // LOAD SALES HISTORY
+  // LOAD SALES CONVERSATION HISTORY
   // =====================================================
 
   async function loadConversationHistory(
     restoreActive = false
   ) {
-
     if (
       !currentUser?.id
     ) {
-
       return;
     }
 
-
     try {
-
       const history =
         await getConversations(
           currentUser.id,
           AGENT_ID
         );
-
 
       const normalizedHistory =
         Array.isArray(
@@ -743,37 +752,26 @@ function SalesApp() {
           ? history
           : [];
 
-
       setConversations(
         normalizedHistory
       );
 
-
       if (
         !restoreActive
       ) {
-
         return;
       }
-
-
-      // =================================================
-      // RESTORE CURRENT SALES CONVERSATION
-      // =================================================
 
       const storedConversationId =
         sessionStorage.getItem(
           ACTIVE_CONVERSATION_KEY
         );
 
-
       if (
         !storedConversationId
       ) {
-
         return;
       }
-
 
       const conversationExists =
         normalizedHistory.some(
@@ -784,25 +782,20 @@ function SalesApp() {
             storedConversationId
         );
 
-
       if (
         !conversationExists
       ) {
-
         sessionStorage.removeItem(
           ACTIVE_CONVERSATION_KEY
         );
 
-
         return;
       }
-
 
       const historyMessages =
         await getConversationMessages(
           storedConversationId
         );
-
 
       const formattedMessages =
         Array.isArray(
@@ -813,11 +806,9 @@ function SalesApp() {
             )
           : [];
 
-
       setActiveConversationId(
         storedConversationId
       );
-
 
       setMessages(
         formattedMessages.length > 0
@@ -827,11 +818,9 @@ function SalesApp() {
             ]
       );
 
-
     } catch (
       error
     ) {
-
       console.error(
         "Unable to load Sales conversations:",
         error
@@ -841,42 +830,35 @@ function SalesApp() {
 
 
   // =====================================================
-  // ENSURE NORMAL SALES CHAT
+  // ENSURE CHAT CONVERSATION
   // =====================================================
 
   async function ensureConversation(
     question
   ) {
-
     if (
       activeConversationId
     ) {
-
       sessionStorage.setItem(
         ACTIVE_CONVERSATION_KEY,
         activeConversationId
       );
 
-
       return activeConversationId;
     }
-
 
     if (
       !currentUser?.id
     ) {
-
       throw new Error(
         "Authenticated user is not available."
       );
     }
 
-
     const title =
       createConversationTitle(
         question
       );
-
 
     const newConversation =
       await createConversation(
@@ -885,33 +867,27 @@ function SalesApp() {
         AGENT_ID
       );
 
-
     if (
       !newConversation?.id
     ) {
-
       throw new Error(
         "Backend did not return a conversation ID."
       );
     }
 
-
     setActiveConversationId(
       newConversation.id
     );
-
 
     sessionStorage.setItem(
       ACTIVE_CONVERSATION_KEY,
       newConversation.id
     );
 
-
     setConversations(
       (
         previous
       ) => [
-
         newConversation,
 
         ...previous.filter(
@@ -921,58 +897,47 @@ function SalesApp() {
             conversation.id !==
             newConversation.id
         ),
-
       ]
     );
-
 
     return newConversation.id;
   }
 
 
   // =====================================================
-  // GET / CREATE SALES VISIT CONVERSATION
+  // ENSURE VISIT CONVERSATION
   // =====================================================
 
   async function getOrCreateSalesConversation() {
-
     if (
       activeConversationId
     ) {
-
       sessionStorage.setItem(
         ACTIVE_CONVERSATION_KEY,
         activeConversationId
       );
 
-
       return activeConversationId;
     }
-
 
     if (
       !currentUser?.id
     ) {
-
       throw new Error(
         "Authenticated user is not available."
       );
     }
 
-
     if (
       !selectedCustomer?.bmd_name
     ) {
-
       throw new Error(
         "Selected customer is not available."
       );
     }
 
-
     const conversationTitle =
       `Visit - ${selectedCustomer.bmd_name}`;
-
 
     const newConversation =
       await createConversation(
@@ -981,37 +946,30 @@ function SalesApp() {
         AGENT_ID
       );
 
-
     if (
       !newConversation?.id
     ) {
-
       throw new Error(
         "Unable to create Sales conversation."
       );
     }
 
-
     const conversationId =
       newConversation.id;
-
 
     setActiveConversationId(
       conversationId
     );
-
 
     sessionStorage.setItem(
       ACTIVE_CONVERSATION_KEY,
       conversationId
     );
 
-
     setConversations(
       (
         previous
       ) => [
-
         newConversation,
 
         ...previous.filter(
@@ -1021,10 +979,8 @@ function SalesApp() {
             conversation.id !==
             conversationId
         ),
-
       ]
     );
-
 
     return conversationId;
   }
@@ -1037,76 +993,72 @@ function SalesApp() {
   async function handleCustomerSelect(
     customer
   ) {
-
     setSelectedCustomer(
       customer
     );
-
 
     setCustomerSnapshot(
       null
     );
 
-
     setCustomerSnapshotError(
       null
     );
-
 
     setActiveVisit(
       null
     );
 
+    setCompletedVisit(
+      null
+    );
+
+    setVisitInsights(
+      null
+    );
 
     setStartVisitError(
       null
     );
 
+    setEndVisitError(
+      null
+    );
 
     setIsStartingVisit(
       false
     );
 
+    setIsEndingVisit(
+      false
+    );
 
     setSalesRecording(
       null
     );
 
-
     setSavedRecording(
       null
     );
 
-
-    setTranscription(
-      null
+    setCompletedRecordingCount(
+      0
     );
-
-
-    setConversationHighlights(
-      []
-    );
-
 
     setRecordingProcessingError(
       null
     );
 
-
     if (
       !customer?.bmd_code
     ) {
-
       return;
     }
 
-
     try {
-
       setIsLoadingCustomerSnapshot(
         true
       );
-
 
       const snapshot =
         await getSalesCustomerSnapshot({
@@ -1114,21 +1066,17 @@ function SalesApp() {
             customer.bmd_code,
         });
 
-
       setCustomerSnapshot(
         snapshot
       );
 
-
     } catch (
       error
     ) {
-
       console.error(
         "Unable to load customer snapshot:",
         error
       );
-
 
       setCustomerSnapshotError(
         error instanceof Error
@@ -1136,9 +1084,7 @@ function SalesApp() {
           : "Unable to load customer business snapshot."
       );
 
-
     } finally {
-
       setIsLoadingCustomerSnapshot(
         false
       );
@@ -1151,57 +1097,72 @@ function SalesApp() {
   // =====================================================
 
   async function handleStartVisit() {
-
     if (
       !selectedCustomer?.bmd_code
     ) {
-
       setStartVisitError(
         "Please select a primary customer first."
       );
 
-
       return;
     }
-
 
     const visitUserId =
       currentUser?.email ||
       currentUser?.id;
 
-
     if (
       !visitUserId
     ) {
-
       setStartVisitError(
         "Authenticated user could not be identified."
       );
 
-
       return;
     }
-
 
     if (
       activeVisit?.visit_id
     ) {
-
       return;
     }
 
-
     try {
-
       setIsStartingVisit(
         true
       );
-
 
       setStartVisitError(
         null
       );
 
+      setEndVisitError(
+        null
+      );
+
+      setVisitInsights(
+        null
+      );
+
+      setCompletedVisit(
+        null
+      );
+
+      setCompletedRecordingCount(
+        0
+      );
+
+      setSalesRecording(
+        null
+      );
+
+      setSavedRecording(
+        null
+      );
+
+      setRecordingProcessingError(
+        null
+      );
 
       const visit =
         await startSalesVisit({
@@ -1215,31 +1176,25 @@ function SalesApp() {
             null,
         });
 
-
       if (
         !visit?.visit_id
       ) {
-
         throw new Error(
           "Visit was started but visit ID was not returned."
         );
       }
 
-
       setActiveVisit(
         visit
       );
 
-
     } catch (
       error
     ) {
-
       console.error(
         "Unable to start Sales visit:",
         error
       );
-
 
       setStartVisitError(
         error instanceof Error
@@ -1247,9 +1202,7 @@ function SalesApp() {
           : "Unable to start customer visit."
       );
 
-
     } finally {
-
       setIsStartingVisit(
         false
       );
@@ -1258,32 +1211,178 @@ function SalesApp() {
 
 
   // =====================================================
-  // QUESTION
+  // END VISIT + GENERATE INSIGHTS
+  // =====================================================
+
+  async function handleEndVisit() {
+    if (
+      !activeVisit?.visit_id
+    ) {
+      setEndVisitError(
+        "There is no active Sales visit to complete."
+      );
+
+      return;
+    }
+
+    if (
+      !selectedCustomer?.bmd_code
+    ) {
+      setEndVisitError(
+        "Selected customer is not available."
+      );
+
+      return;
+    }
+
+    if (
+      completedRecordingCount <= 0
+    ) {
+      setEndVisitError(
+        "Save at least one customer conversation before finishing the visit."
+      );
+
+      return;
+    }
+
+    const visitUserId =
+      currentUser?.email ||
+      currentUser?.id;
+
+    if (
+      !visitUserId
+    ) {
+      setEndVisitError(
+        "Authenticated user could not be identified."
+      );
+
+      return;
+    }
+
+    if (
+      isEndingVisit
+    ) {
+      return;
+    }
+
+    try {
+      setIsEndingVisit(
+        true
+      );
+
+      setEndVisitError(
+        null
+      );
+
+      setRecordingProcessingError(
+        null
+      );
+
+      const result =
+        await completeSalesVisit({
+          visitId:
+            activeVisit.visit_id,
+
+          bmdCode:
+            selectedCustomer.bmd_code,
+
+          userId:
+            visitUserId,
+        });
+
+      const insights =
+        result?.insights ??
+        null;
+
+      const completedVisitResult =
+        result?.visit ??
+        activeVisit;
+
+      if (
+        !insights
+      ) {
+        throw new Error(
+          "Visit was completed but no Sales insights were returned."
+        );
+      }
+
+      setVisitInsights(
+        insights
+      );
+
+      setCompletedVisit(
+        completedVisitResult
+      );
+
+      setActiveVisit(
+        null
+      );
+
+      setSalesRecording(
+        null
+      );
+
+      setSavedRecording(
+        null
+      );
+
+      setCompletedRecordingCount(
+        0
+      );
+
+      console.log(
+        "Sales visit completed:",
+        {
+          visit:
+            completedVisitResult,
+
+          insights,
+        }
+      );
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "Unable to finish Sales visit:",
+        error
+      );
+
+      setEndVisitError(
+        error instanceof Error
+          ? error.message
+          : "Unable to finish the visit and generate insights."
+      );
+
+    } finally {
+      setIsEndingVisit(
+        false
+      );
+    }
+  }
+
+
+  // =====================================================
+  // QUESTION SUBMISSION
+  //
+  // IMPORTANT:
+  // Response mode is NOT reset here.
   // =====================================================
 
   async function handleQuestionSubmit(
     question
   ) {
-
     const cleanQuestion =
       String(
         question || ""
       ).trim();
 
-
     if (
       !cleanQuestion ||
       isLoading
     ) {
-
       return;
     }
-
-
-    setResponseMode(
-      "text"
-    );
-
 
     await handleSend(
       cleanQuestion
@@ -1298,60 +1397,74 @@ function SalesApp() {
   function handleResponseModeSelect(
     mode
   ) {
+    const cleanMode =
+      String(
+        mode || ""
+      )
+        .trim()
+        .toLowerCase();
+
+    if (
+      ![
+        "text",
+        "voice",
+        "podcast",
+      ].includes(
+        cleanMode
+      )
+    ) {
+      return;
+    }
 
     setResponseMode(
-      mode
+      cleanMode
+    );
+
+    console.log(
+      "Sales response mode selected:",
+      cleanMode
     );
   }
 
 
   // =====================================================
-  // SEND QUESTION
+  // SEND SALES CHAT QUESTION
+  //
+  // NOTE:
+  // This still uses the existing shared chat endpoint.
+  // A dedicated /sales/chat endpoint comes next.
   // =====================================================
 
   async function handleSend(
     question
   ) {
-
     const cleanQuestion =
       String(
         question || ""
       ).trim();
 
-
     if (
       !cleanQuestion ||
       isLoading
     ) {
-
       return;
     }
-
 
     if (
       !currentUser?.id
     ) {
-
       alert(
         "Unable to identify the authenticated user."
       );
 
-
       return;
     }
-
 
     setIsLoading(
       true
     );
 
-
-    // ===================================================
-    // IMMEDIATE USER FEEDBACK
-    // ===================================================
-
     const userMessage = {
-
       id:
         crypto.randomUUID(),
 
@@ -1371,7 +1484,6 @@ function SalesApp() {
       (
         previous
       ) => [
-
         ...previous,
 
         userMessage,
@@ -1387,18 +1499,18 @@ function SalesApp() {
             "PLANNER",
 
           text:
-            "Understanding your question...",
+            selectedCustomer?.bmd_name
+              ? `Analyzing ${selectedCustomer.bmd_name}...`
+              : "Understanding your question...",
 
           isLoading:
             true,
         },
-
       ]
     );
 
 
     try {
-
       const conversationId =
         await ensureConversation(
           cleanQuestion
@@ -1430,9 +1542,7 @@ function SalesApp() {
         await sendMessageStream(
           cleanQuestion,
           conversationId,
-
           () => {
-
             setMessages(
               (
                 previous
@@ -1488,15 +1598,13 @@ function SalesApp() {
         response?.summary ||
         response?.executive_summary ||
         (
-          responseEngine ===
-            "CHAT"
+          responseEngine === "CHAT"
             ? "No response was generated."
             : "The query completed successfully."
         );
 
 
       const assistantMessage = {
-
         id:
           crypto.randomUUID(),
 
@@ -1514,8 +1622,7 @@ function SalesApp() {
         content:
           answer,
 
-        responseMode:
-          "text",
+        responseMode,
 
         executiveSummary:
           response?.executive_summary ||
@@ -1567,8 +1674,7 @@ function SalesApp() {
         source:
           response?.source ||
           (
-            responseEngine ===
-              "CHAT"
+            responseEngine === "CHAT"
               ? "GPT"
               : "Azure SQL"
           ),
@@ -1578,8 +1684,11 @@ function SalesApp() {
           rows.length,
 
         executionTime:
-          response?.execution_time_ms ??
-          response?.timings?.request_total_ms ??
+          response
+            ?.execution_time_ms ??
+          response
+            ?.timings
+            ?.request_total_ms ??
           null,
 
         timings:
@@ -1620,11 +1729,9 @@ function SalesApp() {
         false
       );
 
-
     } catch (
       error
     ) {
-
       console.error(
         "Unable to process Sales Agent request:",
         error
@@ -1642,7 +1749,6 @@ function SalesApp() {
               message.id ===
                 loadingId
                 ? {
-
                     id:
                       crypto.randomUUID(),
 
@@ -1663,6 +1769,9 @@ function SalesApp() {
                     source:
                       "System",
 
+                    responseMode:
+                      "text",
+
                     rows:
                       [],
 
@@ -1679,9 +1788,7 @@ function SalesApp() {
           )
       );
 
-
     } finally {
-
       setIsLoading(
         false
       );
@@ -1696,23 +1803,35 @@ function SalesApp() {
   function handleRecordingReady(
     audioBlob
   ) {
-
     if (
       audioBlob &&
       !activeVisit?.visit_id
     ) {
-
       setSalesRecording(
         null
       );
-
 
       setRecordingProcessingError(
         "Start the customer visit before recording."
       );
 
-
       return;
+    }
+
+
+    // New recording means the previous saved-state indicator
+    // should not apply to this new recording.
+
+    if (
+      audioBlob
+    ) {
+      setSavedRecording(
+        null
+      );
+
+      setRecordingProcessingError(
+        null
+      );
     }
 
 
@@ -1724,21 +1843,9 @@ function SalesApp() {
     if (
       !audioBlob
     ) {
-
       setSavedRecording(
         null
       );
-
-
-      setTranscription(
-        null
-      );
-
-
-      setConversationHighlights(
-        []
-      );
-
 
       setRecordingProcessingError(
         null
@@ -1748,19 +1855,20 @@ function SalesApp() {
 
 
   // =====================================================
-  // SAVE + TRANSCRIBE + SUMMARIZE
+  // SAVE + TRANSCRIBE
+  //
+  // NO SUMMARY IS GENERATED HERE.
+  //
+  // Insights are generated only when the visit finishes.
   // =====================================================
 
   async function handleSaveRecording() {
-
     if (
       !selectedCustomer?.bmd_code
     ) {
-
       alert(
         "Please select a primary customer first."
       );
-
 
       return;
     }
@@ -1769,11 +1877,9 @@ function SalesApp() {
     if (
       !activeVisit?.visit_id
     ) {
-
       alert(
         "Please start the customer visit first."
       );
-
 
       return;
     }
@@ -1782,11 +1888,9 @@ function SalesApp() {
     if (
       !salesRecording
     ) {
-
       alert(
         "Please record a customer conversation first."
       );
-
 
       return;
     }
@@ -1795,11 +1899,14 @@ function SalesApp() {
     if (
       isSavingRecording ||
       isTranscribing ||
-      isSummarizing
+      isEndingVisit
     ) {
-
       return;
     }
+
+
+    const currentVisitId =
+      activeVisit.visit_id;
 
 
     setRecordingProcessingError(
@@ -1807,25 +1914,9 @@ function SalesApp() {
     );
 
 
-    setTranscription(
-      null
-    );
-
-
-    setConversationHighlights(
-      []
-    );
-
-
     try {
-
-      setIsSavingRecording(
-        true
-      );
-
-
       // =================================================
-      // CREATE / REUSE CONVERSATION
+      // CREATE OR REUSE SALES CONVERSATION
       // =================================================
 
       const conversationId =
@@ -1833,8 +1924,13 @@ function SalesApp() {
 
 
       // =================================================
-      // UPLOAD
+      // UPLOAD AUDIO
       // =================================================
+
+      setIsSavingRecording(
+        true
+      );
+
 
       const saved =
         await uploadSalesRecording({
@@ -1844,7 +1940,7 @@ function SalesApp() {
           conversationId,
 
           visitId:
-            activeVisit.visit_id,
+            currentVisitId,
 
           bmdCode:
             selectedCustomer.bmd_code,
@@ -1854,7 +1950,6 @@ function SalesApp() {
       if (
         !saved?.blob_name
       ) {
-
         throw new Error(
           "Recording was saved but Blob name was not returned."
         );
@@ -1864,7 +1959,6 @@ function SalesApp() {
       if (
         !saved?.artifact_id
       ) {
-
         throw new Error(
           "Recording was saved but artifact ID was not returned."
         );
@@ -1885,17 +1979,13 @@ function SalesApp() {
         (
           previous
         ) => {
-
           if (
             !previous
           ) {
-
             return previous;
           }
 
-
           return {
-
             ...previous,
 
             conversation_id:
@@ -1907,6 +1997,9 @@ function SalesApp() {
 
       // =================================================
       // TRANSCRIBE
+      //
+      // Backend stores transcript in ai_app.transcript.
+      // Transcript is intentionally not rendered.
       // =================================================
 
       setIsTranscribing(
@@ -1923,21 +2016,8 @@ function SalesApp() {
             saved.artifact_id,
 
           visitId:
-            activeVisit.visit_id,
-
-          locale:
-            "en-IN",
+            currentVisitId,
         });
-
-
-      setTranscription(
-        transcribed
-      );
-
-
-      setIsTranscribing(
-        false
-      );
 
 
       const transcript =
@@ -1950,61 +2030,52 @@ function SalesApp() {
       if (
         !transcript
       ) {
-
         throw new Error(
-          "Speech transcription completed but no transcript was generated."
+          "Speech processing completed but no transcript was generated."
         );
       }
 
 
       // =================================================
-      // SUMMARY
+      // SUCCESSFUL RECORDING
       // =================================================
 
-      setIsSummarizing(
-        true
+      setCompletedRecordingCount(
+        (
+          previous
+        ) =>
+          previous + 1
       );
 
 
-      const summary =
-        await summarizeSalesTranscript({
-          transcript,
-        });
-
-
-      const highlights =
-        Array.isArray(
-          summary?.highlights
-        )
-          ? summary.highlights
-          : [];
-
-
-      if (
-        highlights.length ===
-        0
-      ) {
-
-        throw new Error(
-          "Summary completed but no highlights were returned."
-        );
-      }
-
-
-      setConversationHighlights(
-        highlights
-      );
-
+      // Clear current browser recording so another
+      // recording can be made during the same visit.
 
       setSalesRecording(
         null
       );
 
 
+      console.log(
+        "Sales recording processed:",
+        {
+          visitId:
+            currentVisitId,
+
+          artifactId:
+            saved.artifact_id,
+
+          transcriptId:
+            transcribed?.transcript_id,
+
+          language:
+            transcribed?.language,
+        }
+      );
+
     } catch (
       error
     ) {
-
       console.error(
         "Sales recording processing failed:",
         error
@@ -2017,20 +2088,12 @@ function SalesApp() {
           : "Unable to process Sales recording."
       );
 
-
     } finally {
-
       setIsSavingRecording(
         false
       );
 
-
       setIsTranscribing(
-        false
-      );
-
-
-      setIsSummarizing(
         false
       );
     }
@@ -2042,15 +2105,13 @@ function SalesApp() {
   // =====================================================
 
   function handleNewChat() {
-
     if (
       isLoading ||
       isStartingVisit ||
       isSavingRecording ||
       isTranscribing ||
-      isSummarizing
+      isEndingVisit
     ) {
-
       return;
     }
 
@@ -2100,12 +2161,32 @@ function SalesApp() {
     );
 
 
+    setCompletedVisit(
+      null
+    );
+
+
+    setVisitInsights(
+      null
+    );
+
+
     setIsStartingVisit(
       false
     );
 
 
     setStartVisitError(
+      null
+    );
+
+
+    setIsEndingVisit(
+      false
+    );
+
+
+    setEndVisitError(
       null
     );
 
@@ -2120,13 +2201,8 @@ function SalesApp() {
     );
 
 
-    setTranscription(
-      null
-    );
-
-
-    setConversationHighlights(
-      []
+    setCompletedRecordingCount(
+      0
     );
 
 
@@ -2137,22 +2213,20 @@ function SalesApp() {
 
 
   // =====================================================
-  // OPEN HISTORY
+  // OPEN CHAT HISTORY
   // =====================================================
 
   async function handleHistoryClick(
     conversationId
   ) {
-
     if (
       isLoading ||
       isStartingVisit ||
       isSavingRecording ||
       isTranscribing ||
-      isSummarizing ||
+      isEndingVisit ||
       !conversationId
     ) {
-
       return;
     }
 
@@ -2163,7 +2237,6 @@ function SalesApp() {
 
 
     try {
-
       const history =
         await getConversationMessages(
           conversationId
@@ -2200,11 +2273,6 @@ function SalesApp() {
       );
 
 
-      // =================================================
-      // Sales customer/visit reconstruction can be
-      // added later from conversation metadata.
-      // =================================================
-
       setSelectedCustomer(
         null
       );
@@ -2215,15 +2283,58 @@ function SalesApp() {
       );
 
 
+      setCustomerSnapshotError(
+        null
+      );
+
+
       setActiveVisit(
         null
       );
 
 
+      setCompletedVisit(
+        null
+      );
+
+
+      setVisitInsights(
+        null
+      );
+
+
+      setCompletedRecordingCount(
+        0
+      );
+
+
+      setSalesRecording(
+        null
+      );
+
+
+      setSavedRecording(
+        null
+      );
+
+
+      setStartVisitError(
+        null
+      );
+
+
+      setEndVisitError(
+        null
+      );
+
+
+      setRecordingProcessingError(
+        null
+      );
+
     } catch (
       error
     ) {
-
       console.error(
         "Unable to load Sales conversation:",
         error
@@ -2236,14 +2347,25 @@ function SalesApp() {
           : "Unable to load conversation history."
       );
 
-
     } finally {
-
       setIsLoading(
         false
       );
     }
   }
+
+
+  // =====================================================
+  // GLOBAL BUSY STATE
+  // =====================================================
+
+  const isSalesBusy =
+    isLoading ||
+    isLoadingCustomerSnapshot ||
+    isStartingVisit ||
+    isSavingRecording ||
+    isTranscribing ||
+    isEndingVisit;
 
 
   // =====================================================
@@ -2253,16 +2375,11 @@ function SalesApp() {
   if (
     userLoading
   ) {
-
     return (
-
       <div
-        className=
-          "sales-page-status"
+        className="sales-page-status"
       >
-
         Loading your Sales Intelligence Agent...
-
       </div>
     );
   }
@@ -2276,23 +2393,17 @@ function SalesApp() {
     userError ||
     !currentUser
   ) {
-
     return (
-
       <div
-        className=
-          "sales-page-status"
+        className="sales-page-status"
       >
-
         <strong>
           Unable to load your user profile.
         </strong>
 
-
         <span>
           {userError}
         </span>
-
       </div>
     );
   }
@@ -2303,7 +2414,6 @@ function SalesApp() {
   // =====================================================
 
   return (
-
     <Layout
       user={
         currentUser
@@ -2325,14 +2435,15 @@ function SalesApp() {
         handleNewChat
       }
 
-      headerSubtitle=
-        "Sales Intelligence Agent"
+      headerSubtitle="Sales Intelligence Agent"
     >
-
       <div
-        className=
-          "chat-container sales-chat-container"
+        className="chat-container sales-chat-container"
       >
+
+        {/* ===============================================
+            CHAT RESPONSE WINDOW
+            =============================================== */}
 
         <ChatWindow
           messages={
@@ -2345,10 +2456,17 @@ function SalesApp() {
         />
 
 
+        {/* ===============================================
+            SALES WORKSPACE
+            =============================================== */}
+
         <div
-          className=
-            "composer-section"
+          className="composer-section"
         >
+
+          {/* =============================================
+              CUSTOMER GLOBAL SEARCH
+              ============================================= */}
 
           <SalesCustomerSelector
             selectedCustomer={
@@ -2360,14 +2478,14 @@ function SalesApp() {
             }
 
             disabled={
-              isLoading ||
-              isStartingVisit ||
-              isSavingRecording ||
-              isTranscribing ||
-              isSummarizing
+              isSalesBusy
             }
           />
 
+
+          {/* =============================================
+              BUSINESS SNAPSHOT
+              ============================================= */}
 
           <SalesBusinessSnapshot
             snapshot={
@@ -2383,6 +2501,10 @@ function SalesApp() {
             }
           />
 
+
+          {/* =============================================
+              VISIT
+              ============================================= */}
 
           <SalesVisitPanel
             selectedCustomer={
@@ -2405,55 +2527,66 @@ function SalesApp() {
               handleStartVisit
             }
 
+            onEndVisit={
+              handleEndVisit
+            }
+
+            isEndingVisit={
+              isEndingVisit
+            }
+
+            endVisitError={
+              endVisitError
+            }
+
+            hasRecordedConversation={
+              completedRecordingCount > 0
+            }
+
             disabled={
               isLoadingCustomerSnapshot ||
               isLoading ||
               isSavingRecording ||
-              isTranscribing ||
-              isSummarizing
+              isTranscribing
             }
           />
 
 
+          {/* =============================================
+              CUSTOMER GUIDANCE
+              ============================================= */}
+
           {!selectedCustomer && (
-
             <div
-              className=
-                "sales-processing-status"
+              className="sales-processing-status"
             >
-
-              Select a primary customer to begin.
-
+              Select a customer for a business snapshot,
+              or ask a customer-specific question below.
             </div>
-
           )}
 
 
           {selectedCustomer &&
-           !activeVisit?.visit_id && (
-
+           !activeVisit?.visit_id &&
+           !completedVisit && (
             <div
-              className=
-                "sales-processing-status"
+              className="sales-processing-status"
             >
-
-              Start the customer visit before recording the conversation.
-
+              Start the customer visit when you are ready
+              to record the conversation.
             </div>
-
           )}
 
+
+          {/* =============================================
+              RECORDING
+              ============================================= */}
 
           <SalesRecordingPanel
             disabled={
               !selectedCustomer ||
               !activeVisit?.visit_id ||
-              isLoading ||
-              isLoadingCustomerSnapshot ||
-              isStartingVisit ||
-              isSavingRecording ||
-              isTranscribing ||
-              isSummarizing
+              isSalesBusy
             }
 
             onRecordingReady={
@@ -2465,7 +2598,8 @@ function SalesApp() {
             }
 
             isSaving={
-              isSavingRecording
+              isSavingRecording ||
+              isTranscribing
             }
 
             isSaved={
@@ -2476,130 +2610,177 @@ function SalesApp() {
           />
 
 
+          {/* =============================================
+              RECORDING PROGRESS
+              ============================================= */}
+
           {isSavingRecording && (
-
             <div
-              className=
-                "sales-processing-status"
+              className="sales-processing-status"
             >
-
-              Saving recording...
-
+              Saving customer recording...
             </div>
-
           )}
 
 
           {isTranscribing && (
-
             <div
-              className=
-                "sales-processing-status"
+              className="sales-processing-status"
             >
-
-              Transcribing conversation...
-
+              Processing customer conversation...
             </div>
-
           )}
 
 
-          {isSummarizing && (
-
+          {completedRecordingCount > 0 &&
+           activeVisit?.visit_id &&
+           !isSavingRecording &&
+           !isTranscribing && (
             <div
-              className=
-                "sales-processing-status"
+              className="sales-processing-status"
             >
+              {
+                completedRecordingCount === 1
+                  ? "1 conversation saved for this visit."
+                  : `${completedRecordingCount} conversations saved for this visit.`
+              }
 
-              Generating conversation highlights...
+              {" "}
 
+              You can record another conversation or finish
+              the visit to generate insights.
             </div>
-
           )}
 
 
           {recordingProcessingError && (
-
             <div
-              className=
-                "sales-recording-error"
+              className="sales-recording-error"
             >
-
               {recordingProcessingError}
-
             </div>
-
           )}
 
 
-          {conversationHighlights.length >
-            0 && (
+          {/* =============================================
+              COMPLETED VISIT STATUS
+              ============================================= */}
 
+          {completedVisit && (
             <div
-              className=
-                "sales-conversation-summary"
+              className="sales-processing-status"
             >
+              Visit completed successfully. Customer
+              conversation insights are available below.
+            </div>
+          )}
 
+
+          {/* =============================================
+              STRUCTURED VISIT INSIGHTS
+
+              RAW TRANSCRIPT IS NOT DISPLAYED.
+              ============================================= */}
+
+          {visitInsights && (
+            <div
+              className="sales-visit-insights"
+            >
               <div
-                className=
-                  "sales-conversation-summary-header"
+                className="sales-visit-insights-title"
               >
-
-                <strong>
-                  Conversation Highlights
-                </strong>
-
+                Customer Visit Insights
               </div>
 
 
-              <ul>
+              {visitInsights.visit_summary && (
+                <div
+                  className="sales-visit-summary"
+                >
+                  {
+                    visitInsights.visit_summary
+                  }
+                </div>
+              )}
 
-                {conversationHighlights.map(
-                  (
-                    highlight,
-                    index
-                  ) => (
 
-                    <li
-                      key={
-                        `${index}-${highlight}`
-                      }
-                    >
+              <SalesInsightSection
+                title="Customer Needs"
+                items={
+                  visitInsights.customer_needs
+                }
+              />
 
-                      {highlight}
 
-                    </li>
+              <SalesInsightSection
+                title="Opportunities"
+                items={
+                  visitInsights.opportunities
+                }
+              />
 
-                  )
-                )}
 
-              </ul>
+              <SalesInsightSection
+                title="Product Interests"
+                items={
+                  visitInsights.product_interests
+                }
+              />
 
+
+              <SalesInsightSection
+                title="Commercial Terms"
+                items={
+                  visitInsights.commercial_terms
+                }
+              />
+
+
+              <SalesInsightSection
+                title="Commitments"
+                items={
+                  visitInsights.commitments
+                }
+              />
+
+
+              <SalesInsightSection
+                title="Next Actions"
+                items={
+                  visitInsights.next_actions
+                }
+              />
+
+
+              <SalesInsightSection
+                title="Service Issues"
+                items={
+                  visitInsights.service_issues
+                }
+              />
+
+
+              <SalesInsightSection
+                title="Competitors"
+                items={
+                  visitInsights.competitors
+                }
+              />
+
+
+              <SalesInsightSection
+                title="Risks"
+                items={
+                  visitInsights.risks
+                }
+              />
             </div>
-
           )}
 
 
-          {transcription?.transcript && (
-
-            <details
-              className=
-                "sales-transcript-panel"
-            >
-
-              <summary>
-                View Transcript
-              </summary>
-
-
-              <p>
-                {transcription.transcript}
-              </p>
-
-            </details>
-
-          )}
-
+          {/* =============================================
+              RESPONSE MODE
+              ============================================= */}
 
           <SalesResponseOptions
             selectedMode={
@@ -2611,14 +2792,14 @@ function SalesApp() {
             }
 
             disabled={
-              isLoading ||
-              isStartingVisit ||
-              isSavingRecording ||
-              isTranscribing ||
-              isSummarizing
+              isSalesBusy
             }
           />
 
+
+          {/* =============================================
+              CHAT QUESTION
+              ============================================= */}
 
           <ChatInput
             onSend={
@@ -2629,24 +2810,27 @@ function SalesApp() {
               isLoading
             }
 
-            placeholder=
-              "Ask about a customer, sales trend or customer visit..."
+            placeholder={
+              selectedCustomer?.bmd_name
+                ? (
+                    `Ask about ${selectedCustomer.bmd_name}, sales trends or previous visits...`
+                  )
+                : (
+                    "Ask about a customer, sales trend or previous visit..."
+                  )
+            }
           />
 
         </div>
 
 
         <div
-          className=
-            "chat-footer"
+          className="chat-footer"
         >
-
           AI-generated sales insights may require business validation.
-
         </div>
 
       </div>
-
     </Layout>
   );
 }

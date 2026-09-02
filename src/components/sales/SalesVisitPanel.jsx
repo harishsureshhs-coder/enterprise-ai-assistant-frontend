@@ -9,21 +9,40 @@ import {
 import PlayArrowOutlinedIcon
   from "@mui/icons-material/PlayArrowOutlined";
 
+import StopCircleOutlinedIcon
+  from "@mui/icons-material/StopCircleOutlined";
+
 
 function SalesVisitPanel({
+
   selectedCustomer,
+
   activeVisit,
+
   isStartingVisit,
+
   startVisitError,
+
   onStartVisit,
+
+  // =====================================================
+  // END VISIT / INSIGHTS
+  // =====================================================
+
+  onEndVisit,
+
+  isEndingVisit = false,
+
+  endVisitError = null,
+
+  hasRecordedConversation = false,
+
   disabled = false,
+
 }) {
 
   // =====================================================
-  // NO CUSTOMER SELECTED
-  //
-  // Do not show Start Visit until a primary customer
-  // has been selected.
+  // NO CUSTOMER
   // =====================================================
 
   if (
@@ -35,7 +54,7 @@ function SalesVisitPanel({
 
 
   // =====================================================
-  // VISIT ALREADY STARTED
+  // VISIT ACTIVE
   // =====================================================
 
   if (
@@ -64,7 +83,7 @@ function SalesVisitPanel({
       >
 
         {/* ===============================================
-            ACTIVE VISIT HEADER
+            STATUS
             =============================================== */}
 
         <Box
@@ -75,93 +94,165 @@ function SalesVisitPanel({
             alignItems:
               "center",
 
+            justifyContent:
+              "space-between",
+
             gap:
-              1,
+              2,
+
+            flexWrap:
+              "wrap",
           }}
         >
 
-          {/* =============================================
-              SIMPLE CHECK SYMBOL
-
-              We intentionally avoid another MUI icon
-              import here.
-              ============================================= */}
-
           <Box
             sx={{
-              width:
-                28,
-
-              height:
-                28,
-
-              borderRadius:
-                "50%",
-
-              backgroundColor:
-                "#2e7d32",
-
-              color:
-                "#ffffff",
-
               display:
                 "flex",
 
               alignItems:
                 "center",
 
-              justifyContent:
-                "center",
-
-              fontWeight:
-                700,
-
-              fontSize:
-                16,
-
-              flexShrink:
-                0,
+              gap:
+                1,
             }}
           >
 
-            ✓
+            {/* -------------------------------------------
+                ACTIVE CHECK
+                ------------------------------------------- */}
 
-          </Box>
-
-
-          <Box>
-
-            <Typography
+            <Box
               sx={{
+                width:
+                  28,
+
+                height:
+                  28,
+
+                borderRadius:
+                  "50%",
+
+                backgroundColor:
+                  "#2e7d32",
+
+                color:
+                  "#ffffff",
+
+                display:
+                  "flex",
+
+                alignItems:
+                  "center",
+
+                justifyContent:
+                  "center",
+
                 fontWeight:
                   700,
 
-                color:
-                  "#2e7d32",
+                fontSize:
+                  16,
+
+                flexShrink:
+                  0,
               }}
             >
 
-              Visit in progress
+              ✓
 
-            </Typography>
+            </Box>
 
 
-            <Typography
-              variant="body2"
-              sx={{
-                color:
-                  "#5f6b66",
-              }}
-            >
+            <Box>
 
-              {
-                activeVisit.bmd_name ||
-                selectedCustomer.bmd_name
-              }
+              <Typography
+                sx={{
+                  fontWeight:
+                    700,
 
-            </Typography>
+                  color:
+                    "#2e7d32",
+                }}
+              >
+
+                Visit in progress
+
+              </Typography>
+
+
+              <Typography
+                variant="body2"
+                sx={{
+                  color:
+                    "#5f6b66",
+                }}
+              >
+
+                {
+                  activeVisit.bmd_name ||
+                  selectedCustomer.bmd_name
+                }
+
+              </Typography>
+
+            </Box>
 
           </Box>
+
+
+          {/* =============================================
+              FINISH VISIT
+              ============================================= */}
+
+          <Button
+
+            variant="contained"
+
+            color="error"
+
+            startIcon={
+
+              isEndingVisit
+                ? (
+                    <CircularProgress
+                      size={18}
+                      color="inherit"
+                    />
+                  )
+                : (
+                    <StopCircleOutlinedIcon />
+                  )
+
+            }
+
+            disabled={
+              disabled ||
+              isEndingVisit ||
+              !hasRecordedConversation ||
+              !onEndVisit
+            }
+
+            onClick={
+              onEndVisit
+            }
+
+            sx={{
+              textTransform:
+                "none",
+
+              fontWeight:
+                700,
+            }}
+          >
+
+            {
+              isEndingVisit
+                ? "Generating Insights..."
+                : "Finish Visit & Generate Insights"
+            }
+
+          </Button>
 
         </Box>
 
@@ -188,6 +279,54 @@ function SalesVisitPanel({
           {activeVisit.visit_id}
 
         </Typography>
+
+
+        {/* ===============================================
+            GUIDANCE
+            =============================================== */}
+
+        {!hasRecordedConversation && (
+
+          <Typography
+            variant="caption"
+            sx={{
+              display:
+                "block",
+
+              mt:
+                1,
+
+              color:
+                "#667788",
+            }}
+          >
+
+            Save at least one customer conversation before finishing the visit.
+
+          </Typography>
+
+        )}
+
+
+        {/* ===============================================
+            END VISIT ERROR
+            =============================================== */}
+
+        {endVisitError && (
+
+          <Alert
+            severity="error"
+            sx={{
+              mt:
+                1.5,
+            }}
+          >
+
+            {endVisitError}
+
+          </Alert>
+
+        )}
 
       </Box>
     );
@@ -257,7 +396,7 @@ function SalesVisitPanel({
         }}
       >
 
-        Start the visit before recording the customer conversation.
+        Start the visit after customer consent before recording the conversation.
 
       </Typography>
 
@@ -284,13 +423,15 @@ function SalesVisitPanel({
 
 
       {/* ===============================================
-          START VISIT BUTTON
+          START VISIT
           =============================================== */}
 
       <Button
+
         variant="contained"
 
         startIcon={
+
           isStartingVisit
             ? (
                 <CircularProgress
@@ -301,6 +442,7 @@ function SalesVisitPanel({
             : (
                 <PlayArrowOutlinedIcon />
               )
+
         }
 
         disabled={
