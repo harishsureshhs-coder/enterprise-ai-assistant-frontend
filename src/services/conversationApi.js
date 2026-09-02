@@ -14,7 +14,7 @@ const VALID_AGENT_IDS = [
 
 
 // =========================================================
-q// NORMALIZE AGENT ID
+// NORMALIZE AGENT ID
 // =========================================================
 
 function normalizeAgentId(
