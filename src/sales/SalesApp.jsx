@@ -36,8 +36,8 @@ import {
 
 
 import {
-  sendMessageStream,
-} from "../services/api";
+  sendSalesMessageStream,
+} from "../services/salesChatApi";
 
 
 import {
@@ -68,7 +68,9 @@ import {
 // SALES AGENT CONSTANTS
 // =========================================================
 
-const AGENT_ID = "SALES";
+const AGENT_ID =
+  "SALES";
+
 
 const ACTIVE_CONVERSATION_KEY =
   "sales-active-conversation";
@@ -79,26 +81,40 @@ const ACTIVE_CONVERSATION_KEY =
 // =========================================================
 
 const salesInitialMessage = {
-  id: "sales-welcome",
+  id:
+    "sales-welcome",
 
-  role: "ai",
+  role:
+    "ai",
 
-  engine: "CHAT",
+  engine:
+    "CHAT",
 
   text:
     "Hi! I'm your Sales Intelligence Agent. " +
     "Select a customer for a business snapshot, " +
     "or ask me a customer-specific sales question.",
 
-  source: "GPT",
+  source:
+    "GPT",
 
-  status: "success",
+  status:
+    "success",
 
-  rows: [],
+  responseMode:
+    "text",
 
-  keyInsights: [],
+  rows:
+    [],
 
-  suggestions: [],
+  keyInsights:
+    [],
+
+  suggestions:
+    [],
+
+  resolvedCustomer:
+    null,
 };
 
 
@@ -107,26 +123,47 @@ const salesInitialMessage = {
 // =========================================================
 
 function createConversationTitle(
-  question
+  question,
+  customer = null
 ) {
-  const maximumLength = 32;
+
+  const maximumLength =
+    40;
+
 
   const cleanQuestion =
     String(
       question || ""
     ).trim();
 
+
+  const customerName =
+    String(
+      customer?.bmd_name || ""
+    ).trim();
+
+
+  const sourceTitle =
+    customerName
+      ? `${customerName} - ${cleanQuestion}`
+      : cleanQuestion;
+
+
   if (
-    cleanQuestion.length <=
+    sourceTitle.length <=
     maximumLength
   ) {
-    return cleanQuestion;
+
+    return sourceTitle;
   }
 
-  return `${cleanQuestion.slice(
-    0,
-    maximumLength
-  )}...`;
+
+  return (
+    `${sourceTitle.slice(
+      0,
+      maximumLength
+    )}...`
+  );
 }
 
 
@@ -137,33 +174,43 @@ function createConversationTitle(
 function normalizeArrayValue(
   value
 ) {
+
   if (
     Array.isArray(
       value
     )
   ) {
+
     return value;
   }
+
 
   if (
     typeof value ===
     "string"
   ) {
+
     try {
+
       const parsedValue =
         JSON.parse(
           value
         );
+
 
       return Array.isArray(
         parsedValue
       )
         ? parsedValue
         : [];
+
+
     } catch {
+
       return [];
     }
   }
+
 
   return [];
 }
@@ -176,6 +223,7 @@ function normalizeArrayValue(
 function normalizeObjectValue(
   value
 ) {
+
   if (
     value &&
     typeof value ===
@@ -184,18 +232,23 @@ function normalizeObjectValue(
       value
     )
   ) {
+
     return value;
   }
+
 
   if (
     typeof value ===
     "string"
   ) {
+
     try {
+
       const parsedValue =
         JSON.parse(
           value
         );
+
 
       if (
         parsedValue &&
@@ -205,16 +258,74 @@ function normalizeObjectValue(
           parsedValue
         )
       ) {
+
         return parsedValue;
       }
 
+
       return null;
+
+
     } catch {
+
       return null;
     }
   }
 
+
   return null;
+}
+
+
+// =========================================================
+// NORMALIZE CUSTOMER
+// =========================================================
+
+function normalizeCustomer(
+  customer
+) {
+
+  if (
+    !customer ||
+    typeof customer !==
+      "object"
+  ) {
+
+    return null;
+  }
+
+
+  const bmdCode =
+    String(
+      customer.bmd_code ??
+      customer.BMDCode ??
+      ""
+    ).trim();
+
+
+  const bmdName =
+    String(
+      customer.bmd_name ??
+      customer.BMDName ??
+      ""
+    ).trim();
+
+
+  if (
+    !bmdCode
+  ) {
+
+    return null;
+  }
+
+
+  return {
+    bmd_code:
+      bmdCode,
+
+    bmd_name:
+      bmdName,
+  };
 }
 
 
@@ -225,6 +336,7 @@ function normalizeObjectValue(
 function normalizeHistoryMessage(
   message
 ) {
+
   const role = (
     message.MessageRole ??
     message.message_role ??
@@ -288,6 +400,14 @@ function normalizeHistoryMessage(
     "";
 
 
+  const resolvedCustomer =
+    normalizeCustomer(
+      responsePayload?.resolved_customer ??
+      responsePayload?.resolvedCustomer ??
+      null
+    );
+
+
   return {
     id:
       message.MessageId ??
@@ -301,16 +421,24 @@ function normalizeHistoryMessage(
 
     engine,
 
-    text: answer,
+    text:
+      answer,
 
     answer,
 
-    content: answer,
+    content:
+      answer,
 
     responseMode:
       responsePayload?.response_mode ??
       responsePayload?.responseMode ??
       "text",
+
+    resolvedCustomer,
+
+    customerContextSource:
+      responsePayload?.customer_context_source ??
+      null,
 
     executiveSummary:
       responsePayload?.executive_summary ??
@@ -399,6 +527,53 @@ function normalizeHistoryMessage(
 
 
 // =========================================================
+// FIND LAST RESOLVED CUSTOMER IN CHAT HISTORY
+// =========================================================
+
+function findLastResolvedCustomer(
+  messages
+) {
+
+  if (
+    !Array.isArray(
+      messages
+    )
+  ) {
+
+    return null;
+  }
+
+
+  for (
+    let index =
+      messages.length - 1;
+
+    index >= 0;
+
+    index -= 1
+  ) {
+
+    const customer =
+      normalizeCustomer(
+        messages[index]
+          ?.resolvedCustomer
+      );
+
+
+    if (
+      customer
+    ) {
+
+      return customer;
+    }
+  }
+
+
+  return null;
+}
+
+
+// =========================================================
 // SALES INSIGHT SECTION
 // =========================================================
 
@@ -406,39 +581,53 @@ function SalesInsightSection({
   title,
   items,
 }) {
+
   if (
     !Array.isArray(
       items
     ) ||
     items.length === 0
   ) {
+
     return null;
   }
 
+
   return (
+
     <div
-      className="sales-insight-section"
+      className=
+        "sales-insight-section"
     >
+
       <strong>
         {title}
       </strong>
 
+
       <ul>
+
         {items.map(
           (
             item,
             index
           ) => (
+
             <li
               key={
                 `${title}-${index}-${item}`
               }
             >
+
               {item}
+
             </li>
+
           )
         )}
+
       </ul>
+
     </div>
   );
 }
@@ -504,10 +693,6 @@ function SalesApp() {
 
   // =====================================================
   // RESPONSE MODE
-  //
-  // text
-  // voice
-  // podcast
   // =====================================================
 
   const [
@@ -646,43 +831,55 @@ function SalesApp() {
 
   useEffect(
     () => {
+
       async function loadAuthenticatedUser() {
+
         try {
+
           setUserLoading(
             true
           );
+
 
           setUserError(
             null
           );
 
+
           const authenticatedUser =
             await getCurrentUser();
+
 
           if (
             !authenticatedUser?.id
           ) {
+
             throw new Error(
               "Authenticated Entra user could not be loaded."
             );
           }
+
 
           console.log(
             "Sales authenticated user:",
             authenticatedUser
           );
 
+
           setCurrentUser(
             authenticatedUser
           );
 
+
         } catch (
           error
         ) {
+
           console.error(
             "Unable to load Sales Agent user:",
             error
           );
+
 
           setUserError(
             error instanceof Error
@@ -690,14 +887,18 @@ function SalesApp() {
               : "Unable to load authenticated user."
           );
 
+
         } finally {
+
           setUserLoading(
             false
           );
         }
       }
 
+
       loadAuthenticatedUser();
+
     },
     []
   );
@@ -709,20 +910,263 @@ function SalesApp() {
 
   useEffect(
     () => {
+
       if (
         !currentUser?.id
       ) {
+
         return;
       }
+
 
       loadConversationHistory(
         true
       );
+
     },
     [
       currentUser?.id,
     ]
   );
+
+
+  // =====================================================
+  // LOAD CUSTOMER SNAPSHOT
+  // =====================================================
+
+  async function loadCustomerSnapshot(
+    customer
+  ) {
+
+    const normalizedCustomer =
+      normalizeCustomer(
+        customer
+      );
+
+
+    if (
+      !normalizedCustomer?.bmd_code
+    ) {
+
+      setCustomerSnapshot(
+        null
+      );
+
+
+      return;
+    }
+
+
+    try {
+
+      setIsLoadingCustomerSnapshot(
+        true
+      );
+
+
+      setCustomerSnapshotError(
+        null
+      );
+
+
+      const snapshot =
+        await getSalesCustomerSnapshot({
+          bmdCode:
+            normalizedCustomer.bmd_code,
+        });
+
+
+      setCustomerSnapshot(
+        snapshot
+      );
+
+
+    } catch (
+      error
+    ) {
+
+      console.error(
+        "Unable to load customer snapshot:",
+        error
+      );
+
+
+      setCustomerSnapshot(
+        null
+      );
+
+
+      setCustomerSnapshotError(
+        error instanceof Error
+          ? error.message
+          : "Unable to load customer business snapshot."
+      );
+
+
+    } finally {
+
+      setIsLoadingCustomerSnapshot(
+        false
+      );
+    }
+  }
+
+
+  // =====================================================
+  // APPLY CUSTOMER RESOLVED BY CHAT
+  //
+  // IMPORTANT:
+  //
+  // We DO NOT create a new conversation here.
+  //
+  // Example:
+  //
+  // User:
+  // "Show July TGS for BHAVANI DISTRIBUTORS"
+  //
+  // Backend resolves BHAVANI.
+  //
+  // Frontend stores BHAVANI so the next question:
+  //
+  // "What about August?"
+  //
+  // still sends BHAVANI BMDCode.
+  // =====================================================
+
+  async function applyResolvedCustomerFromChat(
+    customer
+  ) {
+
+    const resolvedCustomer =
+      normalizeCustomer(
+        customer
+      );
+
+
+    if (
+      !resolvedCustomer
+    ) {
+
+      return;
+    }
+
+
+    const existingBmdCode =
+      String(
+        selectedCustomer?.bmd_code ||
+        ""
+      ).trim();
+
+
+    if (
+      existingBmdCode ===
+      resolvedCustomer.bmd_code
+    ) {
+
+      return;
+    }
+
+
+    setSelectedCustomer(
+      resolvedCustomer
+    );
+
+
+    // A customer change invalidates active visit UI.
+    // It does NOT reset the current Sales conversation.
+
+    setActiveVisit(
+      null
+    );
+
+
+    setCompletedVisit(
+      null
+    );
+
+
+    setVisitInsights(
+      null
+    );
+
+
+    setStartVisitError(
+      null
+    );
+
+
+    setEndVisitError(
+      null
+    );
+
+
+    setSalesRecording(
+      null
+    );
+
+
+    setSavedRecording(
+      null
+    );
+
+
+    setCompletedRecordingCount(
+      0
+    );
+
+
+    setRecordingProcessingError(
+      null
+    );
+
+
+    await loadCustomerSnapshot(
+      resolvedCustomer
+    );
+  }
+
+
+  // =====================================================
+  // RESTORE CUSTOMER FROM HISTORY
+  // =====================================================
+
+  async function restoreCustomerFromMessages(
+    formattedMessages
+  ) {
+
+    const customer =
+      findLastResolvedCustomer(
+        formattedMessages
+      );
+
+
+    if (
+      !customer
+    ) {
+
+      setSelectedCustomer(
+        null
+      );
+
+
+      setCustomerSnapshot(
+        null
+      );
+
+
+      return;
+    }
+
+
+    setSelectedCustomer(
+      customer
+    );
+
+
+    await loadCustomerSnapshot(
+      customer
+    );
+  }
 
 
   // =====================================================
@@ -732,18 +1176,23 @@ function SalesApp() {
   async function loadConversationHistory(
     restoreActive = false
   ) {
+
     if (
       !currentUser?.id
     ) {
+
       return;
     }
 
+
     try {
+
       const history =
         await getConversations(
           currentUser.id,
           AGENT_ID
         );
+
 
       const normalizedHistory =
         Array.isArray(
@@ -752,26 +1201,33 @@ function SalesApp() {
           ? history
           : [];
 
+
       setConversations(
         normalizedHistory
       );
 
+
       if (
         !restoreActive
       ) {
+
         return;
       }
+
 
       const storedConversationId =
         sessionStorage.getItem(
           ACTIVE_CONVERSATION_KEY
         );
 
+
       if (
         !storedConversationId
       ) {
+
         return;
       }
+
 
       const conversationExists =
         normalizedHistory.some(
@@ -782,20 +1238,25 @@ function SalesApp() {
             storedConversationId
         );
 
+
       if (
         !conversationExists
       ) {
+
         sessionStorage.removeItem(
           ACTIVE_CONVERSATION_KEY
         );
 
+
         return;
       }
+
 
       const historyMessages =
         await getConversationMessages(
           storedConversationId
         );
+
 
       const formattedMessages =
         Array.isArray(
@@ -806,9 +1267,11 @@ function SalesApp() {
             )
           : [];
 
+
       setActiveConversationId(
         storedConversationId
       );
+
 
       setMessages(
         formattedMessages.length > 0
@@ -818,9 +1281,16 @@ function SalesApp() {
             ]
       );
 
+
+      await restoreCustomerFromMessages(
+        formattedMessages
+      );
+
+
     } catch (
       error
     ) {
+
       console.error(
         "Unable to load Sales conversations:",
         error
@@ -836,29 +1306,37 @@ function SalesApp() {
   async function ensureConversation(
     question
   ) {
+
     if (
       activeConversationId
     ) {
+
       sessionStorage.setItem(
         ACTIVE_CONVERSATION_KEY,
         activeConversationId
       );
 
+
       return activeConversationId;
     }
+
 
     if (
       !currentUser?.id
     ) {
+
       throw new Error(
         "Authenticated user is not available."
       );
     }
 
+
     const title =
       createConversationTitle(
-        question
+        question,
+        selectedCustomer
       );
+
 
     const newConversation =
       await createConversation(
@@ -867,27 +1345,33 @@ function SalesApp() {
         AGENT_ID
       );
 
+
     if (
       !newConversation?.id
     ) {
+
       throw new Error(
         "Backend did not return a conversation ID."
       );
     }
 
+
     setActiveConversationId(
       newConversation.id
     );
+
 
     sessionStorage.setItem(
       ACTIVE_CONVERSATION_KEY,
       newConversation.id
     );
 
+
     setConversations(
       (
         previous
       ) => [
+
         newConversation,
 
         ...previous.filter(
@@ -897,8 +1381,10 @@ function SalesApp() {
             conversation.id !==
             newConversation.id
         ),
+
       ]
     );
+
 
     return newConversation.id;
   }
@@ -909,35 +1395,44 @@ function SalesApp() {
   // =====================================================
 
   async function getOrCreateSalesConversation() {
+
     if (
       activeConversationId
     ) {
+
       sessionStorage.setItem(
         ACTIVE_CONVERSATION_KEY,
         activeConversationId
       );
 
+
       return activeConversationId;
     }
+
 
     if (
       !currentUser?.id
     ) {
+
       throw new Error(
         "Authenticated user is not available."
       );
     }
 
+
     if (
       !selectedCustomer?.bmd_name
     ) {
+
       throw new Error(
         "Selected customer is not available."
       );
     }
 
+
     const conversationTitle =
       `Visit - ${selectedCustomer.bmd_name}`;
+
 
     const newConversation =
       await createConversation(
@@ -946,30 +1441,37 @@ function SalesApp() {
         AGENT_ID
       );
 
+
     if (
       !newConversation?.id
     ) {
+
       throw new Error(
         "Unable to create Sales conversation."
       );
     }
 
+
     const conversationId =
       newConversation.id;
+
 
     setActiveConversationId(
       conversationId
     );
+
 
     sessionStorage.setItem(
       ACTIVE_CONVERSATION_KEY,
       conversationId
     );
 
+
     setConversations(
       (
         previous
       ) => [
+
         newConversation,
 
         ...previous.filter(
@@ -979,116 +1481,170 @@ function SalesApp() {
             conversation.id !==
             conversationId
         ),
+
       ]
     );
+
 
     return conversationId;
   }
 
 
   // =====================================================
-  // SELECT CUSTOMER
+  // RESET VISIT STATE
   // =====================================================
 
-  async function handleCustomerSelect(
-    customer
-  ) {
-    setSelectedCustomer(
-      customer
-    );
-
-    setCustomerSnapshot(
-      null
-    );
-
-    setCustomerSnapshotError(
-      null
-    );
+  function resetVisitState() {
 
     setActiveVisit(
       null
     );
 
+
     setCompletedVisit(
       null
     );
+
 
     setVisitInsights(
       null
     );
 
+
     setStartVisitError(
       null
     );
+
 
     setEndVisitError(
       null
     );
 
+
     setIsStartingVisit(
       false
     );
+
 
     setIsEndingVisit(
       false
     );
 
+
     setSalesRecording(
       null
     );
+
 
     setSavedRecording(
       null
     );
 
+
     setCompletedRecordingCount(
       0
     );
 
+
     setRecordingProcessingError(
       null
     );
+  }
+
+
+  // =====================================================
+  // SELECT CUSTOMER FROM GLOBAL SEARCH
+  //
+  // IMPORTANT:
+  //
+  // A deliberate customer selection starts a clean Sales
+  // conversation context.
+  //
+  // This prevents Customer A analytical filters/history
+  // leaking into Customer B.
+  // =====================================================
+
+  async function handleCustomerSelect(
+    customer
+  ) {
+
+    const normalizedCustomer =
+      normalizeCustomer(
+        customer
+      );
+
+
+    const previousCode =
+      String(
+        selectedCustomer?.bmd_code ||
+        ""
+      ).trim();
+
+
+    const nextCode =
+      String(
+        normalizedCustomer?.bmd_code ||
+        ""
+      ).trim();
+
+
+    const customerChanged =
+      Boolean(
+        nextCode
+      ) &&
+      previousCode !==
+        nextCode;
+
 
     if (
-      !customer?.bmd_code
+      customerChanged
     ) {
+
+      sessionStorage.removeItem(
+        ACTIVE_CONVERSATION_KEY
+      );
+
+
+      setActiveConversationId(
+        null
+      );
+
+
+      setMessages([
+        salesInitialMessage,
+      ]);
+    }
+
+
+    setSelectedCustomer(
+      normalizedCustomer
+    );
+
+
+    setCustomerSnapshot(
+      null
+    );
+
+
+    setCustomerSnapshotError(
+      null
+    );
+
+
+    resetVisitState();
+
+
+    if (
+      !normalizedCustomer?.bmd_code
+    ) {
+
       return;
     }
 
-    try {
-      setIsLoadingCustomerSnapshot(
-        true
-      );
 
-      const snapshot =
-        await getSalesCustomerSnapshot({
-          bmdCode:
-            customer.bmd_code,
-        });
-
-      setCustomerSnapshot(
-        snapshot
-      );
-
-    } catch (
-      error
-    ) {
-      console.error(
-        "Unable to load customer snapshot:",
-        error
-      );
-
-      setCustomerSnapshotError(
-        error instanceof Error
-          ? error.message
-          : "Unable to load customer business snapshot."
-      );
-
-    } finally {
-      setIsLoadingCustomerSnapshot(
-        false
-      );
-    }
+    await loadCustomerSnapshot(
+      normalizedCustomer
+    );
   }
 
 
@@ -1097,72 +1653,92 @@ function SalesApp() {
   // =====================================================
 
   async function handleStartVisit() {
+
     if (
       !selectedCustomer?.bmd_code
     ) {
+
       setStartVisitError(
         "Please select a primary customer first."
       );
 
+
       return;
     }
+
 
     const visitUserId =
       currentUser?.email ||
       currentUser?.id;
 
+
     if (
       !visitUserId
     ) {
+
       setStartVisitError(
         "Authenticated user could not be identified."
       );
 
+
       return;
     }
+
 
     if (
       activeVisit?.visit_id
     ) {
+
       return;
     }
 
+
     try {
+
       setIsStartingVisit(
         true
       );
 
+
       setStartVisitError(
         null
       );
+
 
       setEndVisitError(
         null
       );
 
+
       setVisitInsights(
         null
       );
+
 
       setCompletedVisit(
         null
       );
 
+
       setCompletedRecordingCount(
         0
       );
+
 
       setSalesRecording(
         null
       );
 
+
       setSavedRecording(
         null
       );
 
+
       setRecordingProcessingError(
         null
       );
+
 
       const visit =
         await startSalesVisit({
@@ -1176,25 +1752,31 @@ function SalesApp() {
             null,
         });
 
+
       if (
         !visit?.visit_id
       ) {
+
         throw new Error(
           "Visit was started but visit ID was not returned."
         );
       }
 
+
       setActiveVisit(
         visit
       );
 
+
     } catch (
       error
     ) {
+
       console.error(
         "Unable to start Sales visit:",
         error
       );
+
 
       setStartVisitError(
         error instanceof Error
@@ -1202,7 +1784,9 @@ function SalesApp() {
           : "Unable to start customer visit."
       );
 
+
     } finally {
+
       setIsStartingVisit(
         false
       );
@@ -1215,68 +1799,88 @@ function SalesApp() {
   // =====================================================
 
   async function handleEndVisit() {
+
     if (
       !activeVisit?.visit_id
     ) {
+
       setEndVisitError(
         "There is no active Sales visit to complete."
       );
 
+
       return;
     }
+
 
     if (
       !selectedCustomer?.bmd_code
     ) {
+
       setEndVisitError(
         "Selected customer is not available."
       );
 
+
       return;
     }
+
 
     if (
       completedRecordingCount <= 0
     ) {
+
       setEndVisitError(
         "Save at least one customer conversation before finishing the visit."
       );
 
+
       return;
     }
+
 
     const visitUserId =
       currentUser?.email ||
       currentUser?.id;
 
+
     if (
       !visitUserId
     ) {
+
       setEndVisitError(
         "Authenticated user could not be identified."
       );
 
+
       return;
     }
+
 
     if (
       isEndingVisit
     ) {
+
       return;
     }
 
+
     try {
+
       setIsEndingVisit(
         true
       );
+
 
       setEndVisitError(
         null
       );
 
+
       setRecordingProcessingError(
         null
       );
+
 
       const result =
         await completeSalesVisit({
@@ -1290,45 +1894,56 @@ function SalesApp() {
             visitUserId,
         });
 
+
       const insights =
         result?.insights ??
         null;
+
 
       const completedVisitResult =
         result?.visit ??
         activeVisit;
 
+
       if (
         !insights
       ) {
+
         throw new Error(
           "Visit was completed but no Sales insights were returned."
         );
       }
 
+
       setVisitInsights(
         insights
       );
+
 
       setCompletedVisit(
         completedVisitResult
       );
 
+
       setActiveVisit(
         null
       );
+
 
       setSalesRecording(
         null
       );
 
+
       setSavedRecording(
         null
       );
 
+
       setCompletedRecordingCount(
         0
       );
+
 
       console.log(
         "Sales visit completed:",
@@ -1340,13 +1955,16 @@ function SalesApp() {
         }
       );
 
+
     } catch (
       error
     ) {
+
       console.error(
         "Unable to finish Sales visit:",
         error
       );
+
 
       setEndVisitError(
         error instanceof Error
@@ -1354,7 +1972,9 @@ function SalesApp() {
           : "Unable to finish the visit and generate insights."
       );
 
+
     } finally {
+
       setIsEndingVisit(
         false
       );
@@ -1364,25 +1984,26 @@ function SalesApp() {
 
   // =====================================================
   // QUESTION SUBMISSION
-  //
-  // IMPORTANT:
-  // Response mode is NOT reset here.
   // =====================================================
 
   async function handleQuestionSubmit(
     question
   ) {
+
     const cleanQuestion =
       String(
         question || ""
       ).trim();
 
+
     if (
       !cleanQuestion ||
       isLoading
     ) {
+
       return;
     }
+
 
     await handleSend(
       cleanQuestion
@@ -1397,12 +2018,14 @@ function SalesApp() {
   function handleResponseModeSelect(
     mode
   ) {
+
     const cleanMode =
       String(
         mode || ""
       )
         .trim()
         .toLowerCase();
+
 
     if (
       ![
@@ -1413,12 +2036,15 @@ function SalesApp() {
         cleanMode
       )
     ) {
+
       return;
     }
+
 
     setResponseMode(
       cleanMode
     );
+
 
     console.log(
       "Sales response mode selected:",
@@ -1430,39 +2056,55 @@ function SalesApp() {
   // =====================================================
   // SEND SALES CHAT QUESTION
   //
-  // NOTE:
-  // This still uses the existing shared chat endpoint.
-  // A dedicated /sales/chat endpoint comes next.
+  // Uses:
+  //
+  // POST /sales/chat-stream
+  //
+  // Sends:
+  //
+  // question
+  // conversation_id
+  // user_id
+  // selected customer
+  // response mode
   // =====================================================
 
   async function handleSend(
     question
   ) {
+
     const cleanQuestion =
       String(
         question || ""
       ).trim();
 
+
     if (
       !cleanQuestion ||
       isLoading
     ) {
+
       return;
     }
+
 
     if (
       !currentUser?.id
     ) {
+
       alert(
         "Unable to identify the authenticated user."
       );
 
+
       return;
     }
+
 
     setIsLoading(
       true
     );
+
 
     const userMessage = {
       id:
@@ -1484,6 +2126,7 @@ function SalesApp() {
       (
         previous
       ) => [
+
         ...previous,
 
         userMessage,
@@ -1500,17 +2143,23 @@ function SalesApp() {
 
           text:
             selectedCustomer?.bmd_name
-              ? `Analyzing ${selectedCustomer.bmd_name}...`
-              : "Understanding your question...",
+              ? (
+                  `Analyzing ${selectedCustomer.bmd_name}...`
+                )
+              : (
+                  "Understanding your Sales question..."
+                ),
 
           isLoading:
             true,
         },
+
       ]
     );
 
 
     try {
+
       const conversationId =
         await ensureConversation(
           cleanQuestion
@@ -1531,39 +2180,101 @@ function SalesApp() {
                     ...message,
 
                     text:
-                      "Analyzing the relevant sales data...",
+                      "Resolving customer and Sales context...",
                   }
                 : message
           )
       );
 
 
-      const response =
-        await sendMessageStream(
-          cleanQuestion,
-          conversationId,
-          () => {
-            setMessages(
-              (
-                previous
-              ) =>
-                previous.map(
-                  (
-                    message
-                  ) =>
-                    message.id ===
-                      loadingId
-                      ? {
-                          ...message,
+      // =================================================
+      // SALES-SPECIFIC CHAT
+      // =================================================
 
-                          text:
-                            "Preparing the response...",
-                        }
-                      : message
-                )
-            );
-          }
+      const response =
+        await sendSalesMessageStream({
+          question:
+            cleanQuestion,
+
+          conversationId:
+            conversationId,
+
+          userId:
+            currentUser.id,
+
+          selectedCustomer:
+            selectedCustomer,
+
+          responseMode:
+            responseMode,
+
+          onProgress:
+            (
+              progress
+            ) => {
+
+              const progressMessage =
+                String(
+                  progress?.message ||
+                  "Preparing the Sales response..."
+                );
+
+
+              setMessages(
+                (
+                  previous
+                ) =>
+                  previous.map(
+                    (
+                      message
+                    ) =>
+                      message.id ===
+                        loadingId
+                        ? {
+                            ...message,
+
+                            text:
+                              progressMessage,
+                          }
+                        : message
+                  )
+              );
+            },
+        });
+
+
+      // =================================================
+      // CUSTOMER RESOLVED BY BACKEND
+      //
+      // This is critical for direct-chat customer lookup.
+      //
+      // Example:
+      //
+      // User:
+      // "Show July TGS for BHAVANI DISTRIBUTORS"
+      //
+      // Backend returns BHAVANI.
+      //
+      // Next:
+      // "What about August?"
+      //
+      // Frontend continues sending BHAVANI.
+      // =================================================
+
+      const resolvedCustomer =
+        normalizeCustomer(
+          response?.resolved_customer
         );
+
+
+      if (
+        resolvedCustomer
+      ) {
+
+        await applyResolvedCustomerFromChat(
+          resolvedCustomer
+        );
+      }
 
 
       const rows =
@@ -1604,6 +2315,16 @@ function SalesApp() {
         );
 
 
+      const effectiveResponseMode =
+        String(
+          response?.response_mode ||
+          responseMode ||
+          "text"
+        )
+          .trim()
+          .toLowerCase();
+
+
       const assistantMessage = {
         id:
           crypto.randomUUID(),
@@ -1622,7 +2343,15 @@ function SalesApp() {
         content:
           answer,
 
-        responseMode,
+        responseMode:
+          effectiveResponseMode,
+
+        resolvedCustomer:
+          resolvedCustomer,
+
+        customerContextSource:
+          response?.customer_context_source ||
+          null,
 
         executiveSummary:
           response?.executive_summary ||
@@ -1675,7 +2404,7 @@ function SalesApp() {
           response?.source ||
           (
             responseEngine === "CHAT"
-              ? "GPT"
+              ? "Sales Agent"
               : "Azure SQL"
           ),
 
@@ -1729,9 +2458,11 @@ function SalesApp() {
         false
       );
 
+
     } catch (
       error
     ) {
+
       console.error(
         "Unable to process Sales Agent request:",
         error
@@ -1783,12 +2514,17 @@ function SalesApp() {
 
                     visual:
                       null,
+
+                    resolvedCustomer:
+                      null,
                   }
                 : message
           )
       );
 
+
     } finally {
+
       setIsLoading(
         false
       );
@@ -1803,31 +2539,34 @@ function SalesApp() {
   function handleRecordingReady(
     audioBlob
   ) {
+
     if (
       audioBlob &&
       !activeVisit?.visit_id
     ) {
+
       setSalesRecording(
         null
       );
+
 
       setRecordingProcessingError(
         "Start the customer visit before recording."
       );
 
+
       return;
     }
 
 
-    // New recording means the previous saved-state indicator
-    // should not apply to this new recording.
-
     if (
       audioBlob
     ) {
+
       setSavedRecording(
         null
       );
+
 
       setRecordingProcessingError(
         null
@@ -1843,9 +2582,11 @@ function SalesApp() {
     if (
       !audioBlob
     ) {
+
       setSavedRecording(
         null
       );
+
 
       setRecordingProcessingError(
         null
@@ -1857,18 +2598,21 @@ function SalesApp() {
   // =====================================================
   // SAVE + TRANSCRIBE
   //
-  // NO SUMMARY IS GENERATED HERE.
+  // NO INSIGHT GENERATION HERE.
   //
-  // Insights are generated only when the visit finishes.
+  // Insights are generated when the visit is finished.
   // =====================================================
 
   async function handleSaveRecording() {
+
     if (
       !selectedCustomer?.bmd_code
     ) {
+
       alert(
         "Please select a primary customer first."
       );
+
 
       return;
     }
@@ -1877,9 +2621,11 @@ function SalesApp() {
     if (
       !activeVisit?.visit_id
     ) {
+
       alert(
         "Please start the customer visit first."
       );
+
 
       return;
     }
@@ -1888,9 +2634,11 @@ function SalesApp() {
     if (
       !salesRecording
     ) {
+
       alert(
         "Please record a customer conversation first."
       );
+
 
       return;
     }
@@ -1901,6 +2649,7 @@ function SalesApp() {
       isTranscribing ||
       isEndingVisit
     ) {
+
       return;
     }
 
@@ -1915,8 +2664,9 @@ function SalesApp() {
 
 
     try {
+
       // =================================================
-      // CREATE OR REUSE SALES CONVERSATION
+      // CREATE / REUSE SALES CONVERSATION
       // =================================================
 
       const conversationId =
@@ -1924,7 +2674,7 @@ function SalesApp() {
 
 
       // =================================================
-      // UPLOAD AUDIO
+      // UPLOAD
       // =================================================
 
       setIsSavingRecording(
@@ -1950,6 +2700,7 @@ function SalesApp() {
       if (
         !saved?.blob_name
       ) {
+
         throw new Error(
           "Recording was saved but Blob name was not returned."
         );
@@ -1959,6 +2710,7 @@ function SalesApp() {
       if (
         !saved?.artifact_id
       ) {
+
         throw new Error(
           "Recording was saved but artifact ID was not returned."
         );
@@ -1979,11 +2731,14 @@ function SalesApp() {
         (
           previous
         ) => {
+
           if (
             !previous
           ) {
+
             return previous;
           }
+
 
           return {
             ...previous,
@@ -1996,10 +2751,7 @@ function SalesApp() {
 
 
       // =================================================
-      // TRANSCRIBE
-      //
-      // Backend stores transcript in ai_app.transcript.
-      // Transcript is intentionally not rendered.
+      // TRANSCRIBE SILENTLY
       // =================================================
 
       setIsTranscribing(
@@ -2030,15 +2782,12 @@ function SalesApp() {
       if (
         !transcript
       ) {
+
         throw new Error(
           "Speech processing completed but no transcript was generated."
         );
       }
 
-
-      // =================================================
-      // SUCCESSFUL RECORDING
-      // =================================================
 
       setCompletedRecordingCount(
         (
@@ -2047,9 +2796,6 @@ function SalesApp() {
           previous + 1
       );
 
-
-      // Clear current browser recording so another
-      // recording can be made during the same visit.
 
       setSalesRecording(
         null
@@ -2073,9 +2819,11 @@ function SalesApp() {
         }
       );
 
+
     } catch (
       error
     ) {
+
       console.error(
         "Sales recording processing failed:",
         error
@@ -2088,10 +2836,13 @@ function SalesApp() {
           : "Unable to process Sales recording."
       );
 
+
     } finally {
+
       setIsSavingRecording(
         false
       );
+
 
       setIsTranscribing(
         false
@@ -2105,6 +2856,7 @@ function SalesApp() {
   // =====================================================
 
   function handleNewChat() {
+
     if (
       isLoading ||
       isStartingVisit ||
@@ -2112,6 +2864,7 @@ function SalesApp() {
       isTranscribing ||
       isEndingVisit
     ) {
+
       return;
     }
 
@@ -2156,59 +2909,7 @@ function SalesApp() {
     );
 
 
-    setActiveVisit(
-      null
-    );
-
-
-    setCompletedVisit(
-      null
-    );
-
-
-    setVisitInsights(
-      null
-    );
-
-
-    setIsStartingVisit(
-      false
-    );
-
-
-    setStartVisitError(
-      null
-    );
-
-
-    setIsEndingVisit(
-      false
-    );
-
-
-    setEndVisitError(
-      null
-    );
-
-
-    setSalesRecording(
-      null
-    );
-
-
-    setSavedRecording(
-      null
-    );
-
-
-    setCompletedRecordingCount(
-      0
-    );
-
-
-    setRecordingProcessingError(
-      null
-    );
+    resetVisitState();
   }
 
 
@@ -2219,6 +2920,7 @@ function SalesApp() {
   async function handleHistoryClick(
     conversationId
   ) {
+
     if (
       isLoading ||
       isStartingVisit ||
@@ -2227,6 +2929,7 @@ function SalesApp() {
       isEndingVisit ||
       !conversationId
     ) {
+
       return;
     }
 
@@ -2237,6 +2940,7 @@ function SalesApp() {
 
 
     try {
+
       const history =
         await getConversationMessages(
           conversationId
@@ -2273,68 +2977,18 @@ function SalesApp() {
       );
 
 
-      setSelectedCustomer(
-        null
+      resetVisitState();
+
+
+      await restoreCustomerFromMessages(
+        formattedMessages
       );
 
-
-      setCustomerSnapshot(
-        null
-      );
-
-
-      setCustomerSnapshotError(
-        null
-      );
-
-
-      setActiveVisit(
-        null
-      );
-
-
-      setCompletedVisit(
-        null
-      );
-
-
-      setVisitInsights(
-        null
-      );
-
-
-      setCompletedRecordingCount(
-        0
-      );
-
-
-      setSalesRecording(
-        null
-      );
-
-
-      setSavedRecording(
-        null
-      );
-
-
-      setStartVisitError(
-        null
-      );
-
-
-      setEndVisitError(
-        null
-      );
-
-
-      setRecordingProcessingError(
-        null
-      );
 
     } catch (
       error
     ) {
+
       console.error(
         "Unable to load Sales conversation:",
         error
@@ -2347,7 +3001,9 @@ function SalesApp() {
           : "Unable to load conversation history."
       );
 
+
     } finally {
+
       setIsLoading(
         false
       );
@@ -2356,7 +3012,7 @@ function SalesApp() {
 
 
   // =====================================================
-  // GLOBAL BUSY STATE
+  // BUSY
   // =====================================================
 
   const isSalesBusy =
@@ -2375,11 +3031,16 @@ function SalesApp() {
   if (
     userLoading
   ) {
+
     return (
+
       <div
-        className="sales-page-status"
+        className=
+          "sales-page-status"
       >
+
         Loading your Sales Intelligence Agent...
+
       </div>
     );
   }
@@ -2393,17 +3054,23 @@ function SalesApp() {
     userError ||
     !currentUser
   ) {
+
     return (
+
       <div
-        className="sales-page-status"
+        className=
+          "sales-page-status"
       >
+
         <strong>
           Unable to load your user profile.
         </strong>
 
+
         <span>
           {userError}
         </span>
+
       </div>
     );
   }
@@ -2414,6 +3081,7 @@ function SalesApp() {
   // =====================================================
 
   return (
+
     <Layout
       user={
         currentUser
@@ -2435,14 +3103,17 @@ function SalesApp() {
         handleNewChat
       }
 
-      headerSubtitle="Sales Intelligence Agent"
+      headerSubtitle=
+        "Sales Intelligence Agent"
     >
+
       <div
-        className="chat-container sales-chat-container"
+        className=
+          "chat-container sales-chat-container"
       >
 
         {/* ===============================================
-            CHAT RESPONSE WINDOW
+            CHAT WINDOW
             =============================================== */}
 
         <ChatWindow
@@ -2461,11 +3132,13 @@ function SalesApp() {
             =============================================== */}
 
         <div
-          className="composer-section"
+          className=
+            "composer-section"
         >
 
           {/* =============================================
-              CUSTOMER GLOBAL SEARCH
+              OPTION 1:
+              GLOBAL CUSTOMER SEARCH
               ============================================= */}
 
           <SalesCustomerSelector
@@ -2557,24 +3230,34 @@ function SalesApp() {
               ============================================= */}
 
           {!selectedCustomer && (
+
             <div
-              className="sales-processing-status"
+              className=
+                "sales-processing-status"
             >
+
               Select a customer for a business snapshot,
               or ask a customer-specific question below.
+
             </div>
+
           )}
 
 
           {selectedCustomer &&
            !activeVisit?.visit_id &&
            !completedVisit && (
+
             <div
-              className="sales-processing-status"
+              className=
+                "sales-processing-status"
             >
+
               Start the customer visit when you are ready
               to record the conversation.
+
             </div>
+
           )}
 
 
@@ -2611,24 +3294,34 @@ function SalesApp() {
 
 
           {/* =============================================
-              RECORDING PROGRESS
+              RECORDING STATUS
               ============================================= */}
 
           {isSavingRecording && (
+
             <div
-              className="sales-processing-status"
+              className=
+                "sales-processing-status"
             >
+
               Saving customer recording...
+
             </div>
+
           )}
 
 
           {isTranscribing && (
+
             <div
-              className="sales-processing-status"
+              className=
+                "sales-processing-status"
             >
+
               Processing customer conversation...
+
             </div>
+
           )}
 
 
@@ -2636,76 +3329,108 @@ function SalesApp() {
            activeVisit?.visit_id &&
            !isSavingRecording &&
            !isTranscribing && (
+
             <div
-              className="sales-processing-status"
+              className=
+                "sales-processing-status"
             >
+
               {
                 completedRecordingCount === 1
-                  ? "1 conversation saved for this visit."
-                  : `${completedRecordingCount} conversations saved for this visit.`
+                  ? (
+                      "1 conversation saved for this visit."
+                    )
+                  : (
+                      `${completedRecordingCount} conversations saved for this visit.`
+                    )
               }
 
               {" "}
 
               You can record another conversation or finish
               the visit to generate insights.
+
             </div>
+
           )}
 
 
           {recordingProcessingError && (
+
             <div
-              className="sales-recording-error"
+              className=
+                "sales-recording-error"
             >
+
               {recordingProcessingError}
+
             </div>
+
           )}
 
 
           {/* =============================================
-              COMPLETED VISIT STATUS
+              COMPLETED VISIT
               ============================================= */}
 
           {completedVisit && (
+
             <div
-              className="sales-processing-status"
+              className=
+                "sales-processing-status"
             >
+
               Visit completed successfully. Customer
               conversation insights are available below.
+
             </div>
+
           )}
 
 
           {/* =============================================
               STRUCTURED VISIT INSIGHTS
 
-              RAW TRANSCRIPT IS NOT DISPLAYED.
+              RAW TRANSCRIPT IS NEVER DISPLAYED.
               ============================================= */}
 
           {visitInsights && (
+
             <div
-              className="sales-visit-insights"
+              className=
+                "sales-visit-insights"
             >
+
               <div
-                className="sales-visit-insights-title"
+                className=
+                  "sales-visit-insights-title"
               >
+
                 Customer Visit Insights
+
               </div>
 
 
               {visitInsights.visit_summary && (
+
                 <div
-                  className="sales-visit-summary"
+                  className=
+                    "sales-visit-summary"
                 >
+
                   {
                     visitInsights.visit_summary
                   }
+
                 </div>
+
               )}
 
 
               <SalesInsightSection
-                title="Customer Needs"
+                title=
+                  "Customer Needs"
+
                 items={
                   visitInsights.customer_needs
                 }
@@ -2713,7 +3438,9 @@ function SalesApp() {
 
 
               <SalesInsightSection
-                title="Opportunities"
+                title=
+                  "Opportunities"
+
                 items={
                   visitInsights.opportunities
                 }
@@ -2721,7 +3448,9 @@ function SalesApp() {
 
 
               <SalesInsightSection
-                title="Product Interests"
+                title=
+                  "Product Interests"
+
                 items={
                   visitInsights.product_interests
                 }
@@ -2729,7 +3458,9 @@ function SalesApp() {
 
 
               <SalesInsightSection
-                title="Commercial Terms"
+                title=
+                  "Commercial Terms"
+
                 items={
                   visitInsights.commercial_terms
                 }
@@ -2737,7 +3468,9 @@ function SalesApp() {
 
 
               <SalesInsightSection
-                title="Commitments"
+                title=
+                  "Commitments"
+
                 items={
                   visitInsights.commitments
                 }
@@ -2745,7 +3478,9 @@ function SalesApp() {
 
 
               <SalesInsightSection
-                title="Next Actions"
+                title=
+                  "Next Actions"
+
                 items={
                   visitInsights.next_actions
                 }
@@ -2753,7 +3488,9 @@ function SalesApp() {
 
 
               <SalesInsightSection
-                title="Service Issues"
+                title=
+                  "Service Issues"
+
                 items={
                   visitInsights.service_issues
                 }
@@ -2761,7 +3498,9 @@ function SalesApp() {
 
 
               <SalesInsightSection
-                title="Competitors"
+                title=
+                  "Competitors"
+
                 items={
                   visitInsights.competitors
                 }
@@ -2769,17 +3508,21 @@ function SalesApp() {
 
 
               <SalesInsightSection
-                title="Risks"
+                title=
+                  "Risks"
+
                 items={
                   visitInsights.risks
                 }
               />
+
             </div>
+
           )}
 
 
           {/* =============================================
-              RESPONSE MODE
+              OUTPUT MODE
               ============================================= */}
 
           <SalesResponseOptions
@@ -2798,7 +3541,8 @@ function SalesApp() {
 
 
           {/* =============================================
-              CHAT QUESTION
+              OPTION 2:
+              CUSTOMER-AWARE CHAT
               ============================================= */}
 
           <ChatInput
@@ -2825,12 +3569,16 @@ function SalesApp() {
 
 
         <div
-          className="chat-footer"
+          className=
+            "chat-footer"
         >
+
           AI-generated sales insights may require business validation.
+
         </div>
 
       </div>
+
     </Layout>
   );
 }

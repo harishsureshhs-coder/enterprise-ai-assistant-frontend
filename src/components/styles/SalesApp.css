@@ -1,24 +1,25 @@
 /* =========================================================
-   SALES AGENT LAYOUT ISOLATION
-
-   This file applies only to SalesApp.
-
-   Executive Agent continues using App.css unchanged.
+   SALES AGENT PAGE
    ========================================================= */
 
 
 /* =========================================================
-   MAIN SALES CHAT CONTAINER
+   ROOT SALES CONTAINER
 
-   IMPORTANT:
+   Layout:
 
-   Do NOT make the whole Sales page scroll.
+   ┌───────────────────────────────┐
+   │ Chat / assistant responses    │
+   │ independently scrollable      │
+   ├───────────────────────────────┤
+   │ Sales workspace               │
+   │ customer / visit / insights   │
+   │ independently scrollable      │
+   ├───────────────────────────────┤
+   │ Footer                        │
+   └───────────────────────────────┘
 
-   Instead:
-
-   ChatWindow scrolls independently.
-
-   Sales controls can scroll independently when required.
+   Nothing is absolutely positioned over another section.
    ========================================================= */
 
 .sales-chat-container {
@@ -28,27 +29,28 @@
   min-width: 0;
   min-height: 0;
 
-  display: flex;
-  flex-direction: column;
+  display: grid;
+
+  grid-template-rows:
+    minmax(180px, 1fr)
+    minmax(0, auto)
+    auto;
 
   overflow: hidden;
 
-  padding-bottom: 0;
+  background: #f7f9fc;
 }
 
 
 /* =========================================================
-   CHAT WINDOW
-
-   Prevent customer controls from physically overlapping
-   the conversation area.
+   CHAT RESPONSE WINDOW
    ========================================================= */
 
 .sales-chat-container > .chat-window {
-  flex: 1 1 auto;
+  width: 100%;
 
   min-width: 0;
-  min-height: 180px;
+  min-height: 0;
 
   overflow-y: auto;
   overflow-x: hidden;
@@ -56,6 +58,12 @@
   position: relative;
 
   z-index: 1;
+
+  padding:
+    18px 24px;
+
+  border-bottom:
+    1px solid #dce4ef;
 
   background:
     radial-gradient(
@@ -68,96 +76,111 @@
 
 
 /* =========================================================
-   SALES CONTROL AREA
+   SALES WORKSPACE
 
-   Global Search
-   Snapshot
+   Customer Search
+   Business Snapshot
    Visit
    Recording
    Insights
-   Response Mode
-   Chat Input
-
-   remain below the chat window.
+   Output choice
+   Chat input
    ========================================================= */
 
 .sales-chat-container > .composer-section {
-  flex: 0 0 auto;
+  width: 100%;
 
   min-width: 0;
+  min-height: 0;
 
-  max-height: 62vh;
+  max-height: 58vh;
+
+  display: block;
 
   overflow-y: auto;
-  overflow-x: visible;
+  overflow-x: hidden;
 
   position: relative;
 
-  z-index: 5;
+  z-index: 2;
 
-  border-top:
-    1px solid #dce4ef;
+  flex: none;
 
-  background:
-    #ffffff;
+  padding:
+    12px 14px 16px;
 
-  padding-bottom:
-    16px;
+  border-top: none;
+
+  background: #ffffff;
 }
 
 
 /* =========================================================
-   CUSTOMER SEARCH DROPDOWN
+   IMPORTANT
+   REMOVE GLOBAL STICKY/FLEX EFFECTS INSIDE SALES
+   ========================================================= */
 
-   Keep search results above snapshot / recording cards.
+.sales-chat-container
+.composer-section > * {
+  position: relative;
+}
+
+
+/* =========================================================
+   CUSTOMER SELECTOR
    ========================================================= */
 
 .sales-chat-container
 .sales-customer-selector {
   position: relative;
 
-  z-index: 20;
-}
-
-
-.sales-chat-container
-.sales-customer-search-results,
-.sales-chat-container
-.sales-customer-dropdown {
-  position: absolute;
-
-  z-index: 100;
+  z-index: 30;
 
   width: 100%;
 }
 
 
-/* =========================================================
-   SNAPSHOT
+/* Customer result dropdown */
 
-   Prevent large snapshot cards from escaping their
-   container.
+.sales-chat-container
+.sales-customer-search-results,
+.sales-chat-container
+.sales-customer-dropdown {
+  z-index: 1000;
+}
+
+
+/* =========================================================
+   BUSINESS SNAPSHOT
    ========================================================= */
 
 .sales-chat-container
 .sales-business-snapshot {
+  width: 100%;
+
   position: relative;
 
   z-index: 2;
+
+  clear: both;
 
   overflow: hidden;
 }
 
 
 /* =========================================================
-   VISIT
+   VISIT PANEL
    ========================================================= */
 
 .sales-chat-container
 .sales-visit-panel {
+  width: 100%;
+
   position: relative;
 
   z-index: 2;
+
+  clear: both;
 }
 
 
@@ -167,9 +190,16 @@
 
 .sales-chat-container
 .sales-recording-panel {
+  width: auto;
+
   position: relative;
 
   z-index: 2;
+
+  clear: both;
+
+  margin:
+    10px 0 4px;
 }
 
 
@@ -178,11 +208,13 @@
    ========================================================= */
 
 .sales-processing-status {
+  width: 100%;
+
   margin:
-    8px 24px;
+    8px 0;
 
   padding:
-    8px 10px;
+    9px 11px;
 
   border:
     1px solid #d8e5f3;
@@ -198,20 +230,27 @@
 
   font-size:
     10px;
+
+  line-height:
+    1.45;
+
+  clear: both;
 }
 
 
 /* =========================================================
-   RECORDING ERROR
+   ERROR
    ========================================================= */
 
 .sales-chat-container
 .sales-recording-error {
+  width: 100%;
+
   margin:
-    8px 24px;
+    8px 0;
 
   padding:
-    8px 10px;
+    9px 11px;
 
   border:
     1px solid #fecaca;
@@ -227,15 +266,16 @@
 
   font-size:
     10px;
+
+  clear: both;
 }
 
 
 /* =========================================================
-   TRANSCRIPT
+   RAW TRANSCRIPT
 
-   Transcript remains in SQL.
-
-   It is intentionally NOT displayed to Sales users.
+   Transcript remains an internal SQL artifact.
+   Never display it in Sales UI.
    ========================================================= */
 
 .sales-transcript-panel {
@@ -244,15 +284,23 @@
 
 
 /* =========================================================
-   VISIT INSIGHTS CONTAINER
+   VISIT INSIGHTS
    ========================================================= */
 
 .sales-visit-insights {
+  width: 100%;
+
   margin:
-    10px 24px;
+    10px 0;
 
   padding:
     14px;
+
+  position: relative;
+
+  z-index: 2;
+
+  clear: both;
 
   border:
     1px solid #cddfed;
@@ -327,7 +375,7 @@
 
 .sales-insight-section li {
   margin:
-    3px 0;
+    4px 0;
 
   color:
     #40566d;
@@ -342,39 +390,112 @@
 
 /* =========================================================
    RESPONSE OPTIONS
-
-   Keep the selected response mode visible above chat input.
    ========================================================= */
 
 .sales-chat-container
 .sales-response-options {
-  position:
-    relative;
+  width: 100%;
 
-  z-index:
-    4;
+  position: relative;
+
+  z-index: 3;
+
+  clear: both;
+
+  padding:
+    12px 0 8px;
 
   background:
     #ffffff;
 }
 
 
+.sales-chat-container
+.sales-options-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(
+        0,
+        1fr
+      )
+    );
+
+  gap:
+    8px;
+
+  width:
+    100%;
+}
+
+
+.sales-chat-container
+.sales-option-card {
+  min-width: 0;
+}
+
+
 /* =========================================================
    CHAT INPUT
 
-   Always belongs below Sales controls.
+   IMPORTANT:
+
+   Not sticky.
+   Not absolute.
+   Never overlays business snapshot or insights.
    ========================================================= */
 
 .sales-chat-container
 .chat-input {
-  position:
-    relative;
+  width: 100%;
 
-  z-index:
-    4;
+  display: flex;
+
+  gap:
+    10px;
+
+  position: relative !important;
+
+  left: auto !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: auto !important;
+
+  z-index: 3;
+
+  margin:
+    0;
+
+  padding:
+    10px 0 4px;
+
+  border-top:
+    1px solid #e5ebf2;
 
   background:
     #ffffff;
+}
+
+
+.sales-chat-container
+.chat-input input {
+  flex:
+    1 1 auto;
+
+  width:
+    auto;
+
+  min-width:
+    0;
+}
+
+
+.sales-chat-container
+.chat-input button {
+  flex:
+    0 0 auto;
 }
 
 
@@ -384,8 +505,81 @@
 
 .sales-chat-container
 .chat-footer {
-  flex-shrink:
-    0;
+  width: 100%;
+
+  flex:
+    none;
+
+  position: relative;
+
+  z-index: 3;
+
+  padding:
+    6px 18px 8px;
+
+  border-top:
+    1px solid #edf1f5;
+
+  background:
+    #ffffff;
+
+  color:
+    #8492a4;
+
+  text-align:
+    center;
+
+  font-size:
+    9px;
+}
+
+
+/* =========================================================
+   SCROLLBARS
+   ========================================================= */
+
+.sales-chat-container
+> .chat-window::-webkit-scrollbar,
+.sales-chat-container
+> .composer-section::-webkit-scrollbar {
+  width:
+    7px;
+}
+
+
+.sales-chat-container
+> .chat-window::-webkit-scrollbar-thumb,
+.sales-chat-container
+> .composer-section::-webkit-scrollbar-thumb {
+  border-radius:
+    20px;
+
+  background:
+    #c8d4e3;
+}
+
+
+/* =========================================================
+   TABLET
+   ========================================================= */
+
+@media (
+  max-width: 1000px
+) {
+
+  .sales-chat-container {
+    grid-template-rows:
+      minmax(160px, 1fr)
+      minmax(0, auto)
+      auto;
+  }
+
+
+  .sales-chat-container
+  > .composer-section {
+    max-height:
+      64vh;
+  }
 }
 
 
@@ -397,18 +591,41 @@
   max-width: 820px
 ) {
 
+  .sales-chat-container {
+    grid-template-rows:
+      minmax(140px, 0.8fr)
+      minmax(0, auto)
+      auto;
+  }
+
+
+  .sales-chat-container
+  > .chat-window {
+    padding:
+      14px 12px;
+  }
+
+
   .sales-chat-container
   > .composer-section {
     max-height:
       70vh;
+
+    padding-inline:
+      12px;
   }
 
 
-  .sales-processing-status,
   .sales-chat-container
-  .sales-recording-error,
-  .sales-visit-insights {
-    margin-inline:
-      12px;
+  .sales-options-grid {
+    grid-template-columns:
+      1fr;
+  }
+
+
+  .sales-chat-container
+  .chat-input {
+    gap:
+      7px;
   }
 }
