@@ -2401,7 +2401,13 @@ function SalesApp() {
             null
           );
 
-
+          const voiceText =
+            String(
+             response?.voice_summary_text ||
+            answer ||
+            ""
+             ).trim();
+             
           const audioBlob =
             await synthesizeSalesVoiceSummary({
               text:
