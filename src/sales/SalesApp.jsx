@@ -26,6 +26,9 @@ import SalesCustomerSelector
 import SalesBusinessSnapshot
   from "../components/sales/SalesBusinessSnapshot";
 
+import SalesContextPanel
+  from "../components/sales/SalesContextPanel";
+
 import SalesVisitPanel
   from "../components/sales/SalesVisitPanel";
 
@@ -3037,6 +3040,14 @@ function SalesApp() {
 
   // =====================================================
   // UI
+  //
+  // Three-panel Sales workspace:
+  //
+  // LEFT   : collapsible conversation sidebar
+  // CENTER : chat + voice + response controls
+  // RIGHT  : collapsible customer / snapshot / visit panel
+  //
+  // Sales business logic is unchanged.
   // =====================================================
 
   return (
@@ -3064,58 +3075,120 @@ function SalesApp() {
 
       headerSubtitle=
         "Sales Intelligence Agent"
+
+      sidebarCollapsible
     >
 
       <div
         className=
-          "chat-container sales-chat-container"
+          "sales-agent-workspace"
       >
 
         {/* ===============================================
-            CHAT RESULTS
+            CENTER PANEL
             =============================================== */}
 
-        <ChatWindow
-          messages={
-            messages
-          }
-
-          onSuggestionClick={
-            handleQuestionSubmit
-          }
-        />
-
-
-        {/* ===============================================
-            VOICE SUMMARY PLAYER
-
-            Sales-only.
-            Appears only after Voice Summary generation.
-            =============================================== */}
-
-        <SalesVoicePlayer
-          audioUrl={
-            voiceAudioUrl
-          }
-
-          loading={
-            isGeneratingVoice
-          }
-
-          error={
-            voiceGenerationError
-          }
-        />
-
-
-        {/* ===============================================
-            SALES WORKSPACE
-            =============================================== */}
-
-        <div
+        <section
           className=
-            "composer-section"
+            "sales-center-panel"
         >
+
+          {/* CHAT RESULTS */}
+
+          <ChatWindow
+            messages={
+              messages
+            }
+
+            onSuggestionClick={
+              handleQuestionSubmit
+            }
+          />
+
+
+          {/* CHAT CONTROLS */}
+
+          <div
+            className=
+              "sales-center-controls"
+          >
+
+            {/* VOICE SUMMARY PLAYER */}
+
+            <SalesVoicePlayer
+              audioUrl={
+                voiceAudioUrl
+              }
+
+              loading={
+                isGeneratingVoice
+              }
+
+              error={
+                voiceGenerationError
+              }
+            />
+
+
+            {/* RESPONSE FORMAT */}
+
+            <SalesResponseOptions
+              selectedMode={
+                responseMode
+              }
+
+              onSelect={
+                handleResponseModeSelect
+              }
+
+              disabled={
+                isSalesBusy
+              }
+            />
+
+
+            {/* CHAT INPUT */}
+
+            <ChatInput
+              onSend={
+                handleQuestionSubmit
+              }
+
+              disabled={
+                isSalesBusy
+              }
+
+              placeholder={
+                selectedCustomer?.bmd_name
+                  ? (
+                      `Ask about ${selectedCustomer.bmd_name}, sales trends or previous visits...`
+                    )
+                  : (
+                      "Ask about a customer, sales trend or previous visit..."
+                    )
+              }
+            />
+
+
+            <div
+              className=
+                "chat-footer"
+            >
+
+              AI-generated sales insights may require business validation.
+
+            </div>
+
+          </div>
+
+        </section>
+
+
+        {/* ===============================================
+            RIGHT CUSTOMER CONTEXT PANEL
+            =============================================== */}
+
+        <SalesContextPanel>
 
           {/* CUSTOMER */}
 
@@ -3419,57 +3492,7 @@ function SalesApp() {
 
           )}
 
-
-          {/* RESPONSE FORMAT */}
-
-          <SalesResponseOptions
-            selectedMode={
-              responseMode
-            }
-
-            onSelect={
-              handleResponseModeSelect
-            }
-
-            disabled={
-              isSalesBusy
-            }
-          />
-
-
-          {/* CHAT */}
-
-          <ChatInput
-            onSend={
-              handleQuestionSubmit
-            }
-
-            disabled={
-              isSalesBusy
-            }
-
-            placeholder={
-              selectedCustomer?.bmd_name
-                ? (
-                    `Ask about ${selectedCustomer.bmd_name}, sales trends or previous visits...`
-                  )
-                : (
-                    "Ask about a customer, sales trend or previous visit..."
-                  )
-            }
-          />
-
-        </div>
-
-
-        <div
-          className=
-            "chat-footer"
-        >
-
-          AI-generated sales insights may require business validation.
-
-        </div>
+        </SalesContextPanel>
 
       </div>
 

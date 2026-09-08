@@ -21,6 +21,8 @@ import {
 
 import AddCommentOutlinedIcon from "@mui/icons-material/AddCommentOutlined";
 import ChatBubbleOutlineOutlinedIcon from "@mui/icons-material/ChatBubbleOutlineOutlined";
+import ChevronLeftOutlinedIcon from "@mui/icons-material/ChevronLeftOutlined";
+import ChevronRightOutlinedIcon from "@mui/icons-material/ChevronRightOutlined";
 import CloseOutlinedIcon from "@mui/icons-material/CloseOutlined";
 import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import MoreVertOutlinedIcon from "@mui/icons-material/MoreVertOutlined";
@@ -28,6 +30,7 @@ import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
 
 
 const SIDEBAR_WIDTH = 210;
+const COLLAPSED_SIDEBAR_WIDTH = 64;
 
 
 function Sidebar({
@@ -36,6 +39,7 @@ function Sidebar({
   onHistoryClick,
   onNewChat,
   onDeleteConversation,
+  collapsible = false,
 }) {
   const [
     searchText,
@@ -51,6 +55,16 @@ function Sidebar({
     selectedConversation,
     setSelectedConversation,
   ] = useState(null);
+
+  const [
+    isCollapsed,
+    setIsCollapsed,
+  ] = useState(false);
+
+
+  const collapsed =
+    collapsible &&
+    isCollapsed;
 
 
   const filteredHistory = useMemo(() => {
@@ -98,6 +112,16 @@ function Sidebar({
   }
 
 
+  function handleToggleCollapse() {
+    setIsCollapsed(
+      (previous) => !previous
+    );
+
+    setSearchText("");
+    handleCloseMenu();
+  }
+
+
   function handleOpenMenu(
     event,
     conversation
@@ -140,8 +164,14 @@ function Sidebar({
     <Box
       component="aside"
       sx={{
-        width: SIDEBAR_WIDTH,
-        minWidth: SIDEBAR_WIDTH,
+        width: collapsed
+          ? COLLAPSED_SIDEBAR_WIDTH
+          : SIDEBAR_WIDTH,
+
+        minWidth: collapsed
+          ? COLLAPSED_SIDEBAR_WIDTH
+          : SIDEBAR_WIDTH,
+
         height: "100%",
         display: "flex",
         flexDirection: "column",
@@ -150,136 +180,234 @@ function Sidebar({
         borderRight:
           "1px solid rgba(255,255,255,0.06)",
         overflow: "hidden",
+
+        transition:
+          "width 0.22s ease, min-width 0.22s ease",
       }}
     >
-      <Box
-        sx={{
-          p: 1.5,
-          pb: 1,
-        }}
-      >
-        <Button
-          fullWidth
-          variant="contained"
-          startIcon={
-            <AddCommentOutlinedIcon />
-          }
-          onClick={onNewChat}
+      {collapsible && (
+        <Box
           sx={{
-            minHeight: 42,
-            bgcolor: "#2F74BC",
-            borderRadius: 2,
-            fontWeight: 700,
-            boxShadow: "none",
-            textTransform: "none",
-
-            "&:hover": {
-              bgcolor: "#3B82C7",
-              boxShadow: "none",
-            },
+            display: "flex",
+            justifyContent: collapsed
+              ? "center"
+              : "flex-end",
+            px: collapsed
+              ? 0.75
+              : 1,
+            pt: 0.75,
+            pb: 0.25,
           }}
         >
-          New Chat
-        </Button>
-      </Box>
+          <Tooltip
+            title={
+              collapsed
+                ? "Expand sidebar"
+                : "Collapse sidebar"
+            }
+            placement="right"
+          >
+            <IconButton
+              size="small"
+              onClick={
+                handleToggleCollapse
+              }
+              aria-label={
+                collapsed
+                  ? "Expand conversation sidebar"
+                  : "Collapse conversation sidebar"
+              }
+              sx={{
+                color: "#DCE7F4",
+                bgcolor:
+                  "rgba(255,255,255,0.05)",
+
+                "&:hover": {
+                  bgcolor:
+                    "rgba(255,255,255,0.11)",
+                },
+              }}
+            >
+              {collapsed ? (
+                <ChevronRightOutlinedIcon
+                  sx={{
+                    fontSize: 19,
+                  }}
+                />
+              ) : (
+                <ChevronLeftOutlinedIcon
+                  sx={{
+                    fontSize: 19,
+                  }}
+                />
+              )}
+            </IconButton>
+          </Tooltip>
+        </Box>
+      )}
 
 
       <Box
         sx={{
-          px: 1.5,
+          p: collapsed
+            ? 0.75
+            : 1.5,
           pb: 1,
         }}
       >
-        <TextField
-          fullWidth
-          size="small"
-          value={searchText}
-          onChange={(event) =>
-            setSearchText(
-              event.target.value
-            )
-          }
-          placeholder="Search chats"
-          aria-label="Search conversations"
-          InputProps={{
-            startAdornment: (
-              <InputAdornment
-                position="start"
-              >
-                <SearchOutlinedIcon
-                  sx={{
-                    color: "#AFC2D9",
-                    fontSize: 18,
-                  }}
-                />
-              </InputAdornment>
-            ),
+        {collapsed ? (
+          <Tooltip
+            title="New Chat"
+            placement="right"
+          >
+            <IconButton
+              onClick={onNewChat}
+              aria-label="New Chat"
+              sx={{
+                width: 44,
+                height: 44,
+                bgcolor: "#2F74BC",
+                color: "#FFFFFF",
+                borderRadius: 2,
 
-            endAdornment:
-              searchText ? (
+                "&:hover": {
+                  bgcolor: "#3B82C7",
+                },
+              }}
+            >
+              <AddCommentOutlinedIcon
+                sx={{
+                  fontSize: 20,
+                }}
+              />
+            </IconButton>
+          </Tooltip>
+        ) : (
+          <Button
+            fullWidth
+            variant="contained"
+            startIcon={
+              <AddCommentOutlinedIcon />
+            }
+            onClick={onNewChat}
+            sx={{
+              minHeight: 42,
+              bgcolor: "#2F74BC",
+              borderRadius: 2,
+              fontWeight: 700,
+              boxShadow: "none",
+              textTransform: "none",
+
+              "&:hover": {
+                bgcolor: "#3B82C7",
+                boxShadow: "none",
+              },
+            }}
+          >
+            New Chat
+          </Button>
+        )}
+      </Box>
+
+
+      {!collapsed && (
+        <Box
+          sx={{
+            px: 1.5,
+            pb: 1,
+          }}
+        >
+          <TextField
+            fullWidth
+            size="small"
+            value={searchText}
+            onChange={(event) =>
+              setSearchText(
+                event.target.value
+              )
+            }
+            placeholder="Search chats"
+            aria-label="Search conversations"
+            InputProps={{
+              startAdornment: (
                 <InputAdornment
-                  position="end"
+                  position="start"
                 >
-                  <IconButton
-                    size="small"
-                    onClick={
-                      handleClearSearch
-                    }
-                    aria-label="Clear conversation search"
+                  <SearchOutlinedIcon
                     sx={{
                       color: "#AFC2D9",
-                      p: 0.25,
-
-                      "&:hover": {
-                        bgcolor:
-                          "rgba(255,255,255,0.08)",
-                      },
+                      fontSize: 18,
                     }}
-                  >
-                    <CloseOutlinedIcon
-                      sx={{
-                        fontSize: 16,
-                      }}
-                    />
-                  </IconButton>
+                  />
                 </InputAdornment>
-              ) : null,
-          }}
-          sx={{
-            "& .MuiOutlinedInput-root":
-              {
-                height: 38,
-                color: "#FFFFFF",
-                bgcolor:
-                  "rgba(255,255,255,0.06)",
-                borderRadius: 2,
-                fontSize: 11,
+              ),
 
-                "& fieldset": {
-                  borderColor:
-                    "rgba(255,255,255,0.12)",
-                },
+              endAdornment:
+                searchText ? (
+                  <InputAdornment
+                    position="end"
+                  >
+                    <IconButton
+                      size="small"
+                      onClick={
+                        handleClearSearch
+                      }
+                      aria-label="Clear conversation search"
+                      sx={{
+                        color: "#AFC2D9",
+                        p: 0.25,
 
-                "&:hover fieldset": {
-                  borderColor:
-                    "rgba(255,255,255,0.24)",
-                },
+                        "&:hover": {
+                          bgcolor:
+                            "rgba(255,255,255,0.08)",
+                        },
+                      }}
+                    >
+                      <CloseOutlinedIcon
+                        sx={{
+                          fontSize: 16,
+                        }}
+                      />
+                    </IconButton>
+                  </InputAdornment>
+                ) : null,
+            }}
+            sx={{
+              "& .MuiOutlinedInput-root":
+                {
+                  height: 38,
+                  color: "#FFFFFF",
+                  bgcolor:
+                    "rgba(255,255,255,0.06)",
+                  borderRadius: 2,
+                  fontSize: 11,
 
-                "&.Mui-focused fieldset":
-                  {
+                  "& fieldset": {
                     borderColor:
-                      "#5B9BD5",
+                      "rgba(255,255,255,0.12)",
                   },
-              },
 
-            "& input::placeholder":
-              {
-                color: "#AFC2D9",
-                opacity: 1,
-              },
-          }}
-        />
-      </Box>
+                  "&:hover fieldset": {
+                    borderColor:
+                      "rgba(255,255,255,0.24)",
+                  },
+
+                  "&.Mui-focused fieldset":
+                    {
+                      borderColor:
+                        "#5B9BD5",
+                    },
+                },
+
+              "& input::placeholder":
+                {
+                  color: "#AFC2D9",
+                  opacity: 1,
+                },
+            }}
+          />
+        </Box>
+      )}
 
 
       <Box
@@ -287,11 +415,14 @@ function Sidebar({
           flex: 1,
           minHeight: 0,
           overflowY: "auto",
-          px: 1,
+          px: collapsed
+            ? 0.75
+            : 1,
           pb: 1,
         }}
       >
-        {isSearching &&
+        {!collapsed &&
+        isSearching &&
         !hasSearchResults ? (
           <Box
             sx={{
@@ -344,6 +475,9 @@ function Sidebar({
               onOpenMenu={
                 handleOpenMenu
               }
+              collapsed={
+                collapsed
+              }
             />
 
             <HistorySection
@@ -360,6 +494,9 @@ function Sidebar({
               onOpenMenu={
                 handleOpenMenu
               }
+              collapsed={
+                collapsed
+              }
             />
 
             <HistorySection
@@ -375,6 +512,9 @@ function Sidebar({
               }
               onOpenMenu={
                 handleOpenMenu
+              }
+              collapsed={
+                collapsed
               }
             />
           </>
@@ -427,6 +567,7 @@ function HistorySection({
   activeConversationId,
   onHistoryClick,
   onOpenMenu,
+  collapsed = false,
 }) {
   if (!items.length) {
     return null;
@@ -435,22 +576,26 @@ function HistorySection({
   return (
     <Box
       sx={{
-        mb: 1.5,
+        mb: collapsed
+          ? 0.75
+          : 1.5,
       }}
     >
-      <Typography
-        sx={{
-          px: 1,
-          py: 0.75,
-          color: "#AFC2D9",
-          fontSize: 10,
-          fontWeight: 700,
-          letterSpacing: 0.7,
-          textTransform: "uppercase",
-        }}
-      >
-        {title}
-      </Typography>
+      {!collapsed && (
+        <Typography
+          sx={{
+            px: 1,
+            py: 0.75,
+            color: "#AFC2D9",
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: 0.7,
+            textTransform: "uppercase",
+          }}
+        >
+          {title}
+        </Typography>
+      )}
 
       <List disablePadding>
         {items.map((item) => {
@@ -458,7 +603,7 @@ function HistorySection({
             item.id ===
             activeConversationId;
 
-          return (
+          const historyButton = (
             <ListItemButton
               key={item.id}
               selected={isActive}
@@ -469,11 +614,17 @@ function HistorySection({
               }
               sx={{
                 minHeight: 38,
-                px: 1,
+                px: collapsed
+                  ? 0
+                  : 1,
                 mb: 0.25,
                 borderRadius: 2,
                 color: "#E4EDF7",
                 display: "flex",
+                justifyContent:
+                  collapsed
+                    ? "center"
+                    : "flex-start",
                 alignItems: "center",
 
                 "&:hover": {
@@ -502,18 +653,26 @@ function HistorySection({
 
                 "&:hover .conversation-menu-button":
                   {
-                    opacity: 1,
+                    opacity: collapsed
+                      ? 0
+                      : 1,
                   },
 
                 "&.Mui-selected .conversation-menu-button":
                   {
-                    opacity: 1,
+                    opacity: collapsed
+                      ? 0
+                      : 1,
                   },
               }}
             >
               <ListItemIcon
                 sx={{
-                  minWidth: 31,
+                  minWidth: collapsed
+                    ? 0
+                    : 31,
+                  justifyContent:
+                    "center",
                   color: isActive
                     ? "#FFFFFF"
                     : "#C9D7E7",
@@ -526,57 +685,75 @@ function HistorySection({
                 />
               </ListItemIcon>
 
-              <Tooltip
-                title={item.title}
-                placement="right"
-              >
-                <ListItemText
-                  primary={item.title}
-                  primaryTypographyProps={{
-                    noWrap: true,
-                    fontSize: 11,
-                    fontWeight:
-                      isActive
-                        ? 600
-                        : 400,
-                  }}
-                  sx={{
-                    minWidth: 0,
-                    mr: 0.25,
-                  }}
-                />
-              </Tooltip>
+              {!collapsed && (
+                <>
+                  <Tooltip
+                    title={item.title}
+                    placement="right"
+                  >
+                    <ListItemText
+                      primary={item.title}
+                      primaryTypographyProps={{
+                        noWrap: true,
+                        fontSize: 11,
+                        fontWeight:
+                          isActive
+                            ? 600
+                            : 400,
+                      }}
+                      sx={{
+                        minWidth: 0,
+                        mr: 0.25,
+                      }}
+                    />
+                  </Tooltip>
 
-              <IconButton
-                className="conversation-menu-button"
-                size="small"
-                aria-label={`Open options for ${item.title}`}
-                onClick={(event) =>
-                  onOpenMenu?.(
-                    event,
-                    item
-                  )
-                }
-                sx={{
-                  ml: "auto",
-                  p: 0.35,
-                  color: "#DCE7F4",
-                  transition:
-                    "opacity 0.15s ease",
+                  <IconButton
+                    className="conversation-menu-button"
+                    size="small"
+                    aria-label={`Open options for ${item.title}`}
+                    onClick={(event) =>
+                      onOpenMenu?.(
+                        event,
+                        item
+                      )
+                    }
+                    sx={{
+                      ml: "auto",
+                      p: 0.35,
+                      color: "#DCE7F4",
+                      transition:
+                        "opacity 0.15s ease",
 
-                  "&:hover": {
-                    bgcolor:
-                      "rgba(255,255,255,0.10)",
-                  },
-                }}
-              >
-                <MoreVertOutlinedIcon
-                  sx={{
-                    fontSize: 17,
-                  }}
-                />
-              </IconButton>
+                      "&:hover": {
+                        bgcolor:
+                          "rgba(255,255,255,0.10)",
+                      },
+                    }}
+                  >
+                    <MoreVertOutlinedIcon
+                      sx={{
+                        fontSize: 17,
+                      }}
+                    />
+                  </IconButton>
+                </>
+              )}
             </ListItemButton>
+          );
+
+          if (!collapsed) {
+            return historyButton;
+          }
+
+          return (
+            <Tooltip
+              key={item.id}
+              title={item.title}
+              placement="right"
+            >
+              {historyButton}
+            </Tooltip>
           );
         })}
       </List>
