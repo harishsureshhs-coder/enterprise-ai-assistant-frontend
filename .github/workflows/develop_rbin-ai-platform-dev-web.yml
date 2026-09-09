@@ -10,6 +10,7 @@ on:
 
   workflow_dispatch:
 
+
 jobs:
 
   # ======================================================
@@ -17,10 +18,12 @@ jobs:
   # ======================================================
 
   build:
+
     runs-on: ubuntu-latest
 
     permissions:
       contents: read
+
 
     steps:
 
@@ -38,9 +41,10 @@ jobs:
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
+
         with:
-          node-version: '24.x'
-          cache: 'npm'
+          node-version: "24.x"
+          cache: "npm"
 
 
       # --------------------------------------------------
@@ -54,42 +58,107 @@ jobs:
       # --------------------------------------------------
       # Build Vite production application
       #
-      # This MUST create:
+      # IMPORTANT:
       #
-      # dist/
-      #   index.html
-      #   assets/
+      # VITE_* values are injected at BUILD TIME.
+      #
+      # DEV uses local authentication.
+      #
+      # Replace <DEV-BACKEND-DOMAIN> with the exact
+      # Default domain shown in:
+      #
+      # Azure Portal
+      # → rbin-ai-platform-dev-api
+      # → Overview
+      # → Default domain
+      #
+      # Example:
+      #
+      # https://rbin-ai-platform-dev-api-xxxxxx
+      # .eastus-01.azurewebsites.net
+      #
       # --------------------------------------------------
 
       - name: Build frontend
+
+        env:
+
+          # ----------------------------------------------
+          # DEV AUTHENTICATION
+          #
+          # Do not use Entra Easy Auth in DEV yet.
+          # Frontend will use Local Developer.
+          # ----------------------------------------------
+
+          VITE_AUTH_MODE: "local"
+
+
+          # ----------------------------------------------
+          # DEV BACKEND API
+          #
+          # IMPORTANT:
+          # Put the exact DEV backend URL here.
+          #
+          # Do NOT use the UAT backend.
+          # ----------------------------------------------
+
+          VITE_API_URL: "https://rbin-ai-platform-dev-api-dmf9gpbwhfg9huha.eastus-01.azurewebsites.net"
+
+
         run: npm run build
 
 
       # --------------------------------------------------
-      # Verify build output
+      # Verify Vite build output
       # --------------------------------------------------
 
       - name: Verify Vite build
+
         run: |
+
+          echo "======================================"
           echo "Contents of dist:"
+          echo "======================================"
+
           ls -la dist
+
+
+          echo "======================================"
           echo "Contents of dist/assets:"
+          echo "======================================"
+
           ls -la dist/assets
+
+
+          echo "======================================"
+          echo "Checking index.html:"
+          echo "======================================"
+
+          test -f dist/index.html
 
 
       # --------------------------------------------------
       # Upload ONLY production build
       #
       # IMPORTANT:
-      # Do not upload entire React source repository.
+      #
+      # Do NOT upload:
+      #
+      # src/
+      # package.json
+      # main.jsx
+      #
+      # Only dist/ should go to App Service.
       # --------------------------------------------------
 
       - name: Upload frontend artifact
         uses: actions/upload-artifact@v4
+
         with:
           name: frontend-dist
           path: dist/
           if-no-files-found: error
+
 
 
   # ======================================================
@@ -99,7 +168,10 @@ jobs:
   deploy:
 
     runs-on: ubuntu-latest
-    needs: build
+
+    needs:
+      - build
+
 
     steps:
 
@@ -109,9 +181,39 @@ jobs:
 
       - name: Download frontend artifact
         uses: actions/download-artifact@v4
+
         with:
           name: frontend-dist
           path: dist
+
+
+      # --------------------------------------------------
+      # Verify downloaded deployment artifact
+      # --------------------------------------------------
+
+      - name: Verify deployment artifact
+
+        run: |
+
+          echo "======================================"
+          echo "Deployment package:"
+          echo "======================================"
+
+          ls -la dist
+
+
+          echo "======================================"
+          echo "Deployment assets:"
+          echo "======================================"
+
+          ls -la dist/assets
+
+
+          echo "======================================"
+          echo "Checking deployment index.html:"
+          echo "======================================"
+
+          test -f dist/index.html
 
 
       # --------------------------------------------------
@@ -119,10 +221,17 @@ jobs:
       # --------------------------------------------------
 
       - name: Deploy to Azure Web App
+
         id: deploy-to-webapp
+
         uses: azure/webapps-deploy@v3
+
         with:
-          app-name: 'rbin-ai-platform-dev-web'
-          slot-name: 'Production'
+
+          app-name: "rbin-ai-platform-dev-web"
+
+          slot-name: "Production"
+
           package: ./dist
+
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_3BF81FC16B7E4BF09153FB6F900D8BB5 }}
