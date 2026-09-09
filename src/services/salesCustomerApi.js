@@ -1,50 +1,128 @@
-// const API_URL =
-//   import.meta.env.VITE_API_URL ||
-//   "https://exesalesdev-fdfkfpb9fmabcadg.eastus-01.azurewebsites.net";
-
 import {
   API_URL,
 } from "../config/apiConfig";
 
 
-const REQUEST_TIMEOUT_MS = 120000;
-
-
 // =========================================================
-// SEARCH PRIMARY BMD CUSTOMERS
+// CONSTANTS
+// =========================================================
+
+const MIN_CUSTOMER_SEARCH_LENGTH =
+  3;
+
+
+const CUSTOMER_SEARCH_LIMIT =
+  20;
+
+
+// Customer search should be fast.
+// The debounce happens in the component.
 //
-// GET
-// /sales/customers?search=PANU%20DIESEL&limit=20
+// This timeout protects the browser if the
+// backend/database becomes unavailable.
+
+const CUSTOMER_SEARCH_TIMEOUT_MS =
+  15000;
+
+
+const CUSTOMER_SNAPSHOT_TIMEOUT_MS =
+  30000;
+
+
+// =========================================================
+// READ JSON SAFELY
 // =========================================================
 
-export async function searchSalesCustomers({
-  search = "",
-  limit = 20,
-}) {
+async function readJsonSafely(
+  response
+) {
+
+  try {
+
+    return await response.json();
+
+
+  } catch {
+
+    return null;
+  }
+}
+
+
+// =========================================================
+// GET ERROR MESSAGE
+// =========================================================
+
+function getApiErrorMessage(
+  result,
+  fallbackMessage
+) {
+
+  const detail =
+    result?.detail;
+
+
+  if (
+    typeof detail ===
+    "string" &&
+    detail.trim()
+  ) {
+
+    return detail.trim();
+  }
+
+
+  if (
+    typeof result?.message ===
+    "string" &&
+    result.message.trim()
+  ) {
+
+    return result.message.trim();
+  }
+
+
+  return fallbackMessage;
+}
+
+
+// =========================================================
+// SEARCH SALES CUSTOMERS
+// =========================================================
+
+export async function searchSalesCustomers(
+  searchText
+) {
 
   const cleanSearch =
     String(
-      search || ""
+      searchText
+      || ""
     ).trim();
 
 
-  const params =
-    new URLSearchParams();
+  // -------------------------------------------------------
+  // NEVER CALL BACKEND FOR 1-2 CHARACTERS
+  // -------------------------------------------------------
+
+  if (
+    cleanSearch.length <
+    MIN_CUSTOMER_SEARCH_LENGTH
+  ) {
+
+    return [];
+  }
 
 
-  params.set(
-    "search",
+  console.log(
+    "Searching primary Sales customers:",
     cleanSearch
   );
 
 
-  params.set(
-    "limit",
-    String(
-      limit
-    )
-  );
-
+  // -------------------------------------------------------
+  // ABORT CONTROLLER
+  // -------------------------------------------------------
 
   const controller =
     new AbortController();
@@ -53,17 +131,45 @@ export async function searchSalesCustomers({
   const timeoutId =
     window.setTimeout(
       () => {
+
         controller.abort();
+
       },
-      REQUEST_TIMEOUT_MS
+      CUSTOMER_SEARCH_TIMEOUT_MS
     );
 
 
   try {
 
+    // -----------------------------------------------------
+    // ENDPOINT
+    //
+    // Example:
+    //
+    // /sales/customers/search
+    //      ?search_text=170015
+    //      &limit=20
+    // -----------------------------------------------------
+
+    const url =
+      (
+        `${API_URL}/sales/customers/search`
+        +
+        `?search_text=${
+          encodeURIComponent(
+            cleanSearch
+          )
+        }`
+        +
+        `&limit=${
+          CUSTOMER_SEARCH_LIMIT
+        }`
+      );
+
+
     const response =
       await fetch(
-        `${API_URL}/sales/customers?${params.toString()}`,
+        url,
         {
           method:
             "GET",
@@ -79,44 +185,76 @@ export async function searchSalesCustomers({
       );
 
 
-    let result = null;
-
-
-    try {
-
-      result =
-        await response.json();
-
-    } catch {
-
-      throw new Error(
-        "Customer search returned an invalid response."
+    const result =
+      await readJsonSafely(
+        response
       );
-    }
 
 
-    if (!response.ok) {
+    if (
+      !response.ok
+    ) {
 
       throw new Error(
-        result?.detail ||
-        (
-          "Unable to search customers. " +
-          `Status: ${response.status}`
+        getApiErrorMessage(
+          result,
+          (
+            "Unable to search "
+            + "Sales customers."
+          )
         )
       );
     }
 
 
-    return (
+    // -----------------------------------------------------
+    // CURRENT BACKEND CONTRACT
+    // -----------------------------------------------------
+
+    if (
       Array.isArray(
         result?.customers
       )
-        ? result.customers
-        : []
-    );
+    ) {
+
+      return result.customers;
+    }
 
 
-  } catch (error) {
+    // -----------------------------------------------------
+    // BACKWARD COMPATIBILITY
+    // -----------------------------------------------------
+
+    if (
+      Array.isArray(
+        result
+      )
+    ) {
+
+      return result;
+    }
+
+
+    if (
+      Array.isArray(
+        result?.results
+      )
+    ) {
+
+      return result.results;
+    }
+
+
+    return [];
+
+
+  } catch (
+    error
+  ) {
+
+    // -----------------------------------------------------
+    // TIMEOUT
+    // -----------------------------------------------------
 
     if (
       error?.name ===
@@ -142,10 +280,7 @@ export async function searchSalesCustomers({
 
 
 // =========================================================
-// GET PRIMARY CUSTOMER BUSINESS SNAPSHOT
-//
-// GET
-// /sales/customers/{bmd_code}/snapshot
+// GET CUSTOMER BUSINESS SNAPSHOT
 // =========================================================
 
 export async function getSalesCustomerSnapshot({
@@ -154,14 +289,17 @@ export async function getSalesCustomerSnapshot({
 
   const cleanBmdCode =
     String(
-      bmdCode || ""
+      bmdCode
+      || ""
     ).trim();
 
 
-  if (!cleanBmdCode) {
+  if (
+    !cleanBmdCode
+  ) {
 
     throw new Error(
-      "BMD code is required."
+      "Customer code is required."
     );
   }
 
@@ -173,9 +311,11 @@ export async function getSalesCustomerSnapshot({
   const timeoutId =
     window.setTimeout(
       () => {
+
         controller.abort();
+
       },
-      REQUEST_TIMEOUT_MS
+      CUSTOMER_SNAPSHOT_TIMEOUT_MS
     );
 
 
@@ -184,8 +324,15 @@ export async function getSalesCustomerSnapshot({
     const response =
       await fetch(
         (
-          `${API_URL}/sales/customers/` +
-          `${encodeURIComponent(cleanBmdCode)}/snapshot`
+          `${API_URL}/sales/customers/`
+          +
+          `${
+            encodeURIComponent(
+              cleanBmdCode
+            )
+          }`
+          +
+          "/snapshot"
         ),
         {
           method:
@@ -202,29 +349,23 @@ export async function getSalesCustomerSnapshot({
       );
 
 
-    let result = null;
-
-
-    try {
-
-      result =
-        await response.json();
-
-    } catch {
-
-      throw new Error(
-        "Customer snapshot returned an invalid response."
+    const result =
+      await readJsonSafely(
+        response
       );
-    }
 
 
-    if (!response.ok) {
+    if (
+      !response.ok
+    ) {
 
       throw new Error(
-        result?.detail ||
-        (
-          "Unable to load customer snapshot. " +
-          `Status: ${response.status}`
+        getApiErrorMessage(
+          result,
+          (
+            "Unable to load customer "
+            + "business snapshot."
+          )
         )
       );
     }
@@ -233,7 +374,9 @@ export async function getSalesCustomerSnapshot({
     return result;
 
 
-  } catch (error) {
+  } catch (
+    error
+  ) {
 
     if (
       error?.name ===
@@ -241,7 +384,10 @@ export async function getSalesCustomerSnapshot({
     ) {
 
       throw new Error(
-        "Customer snapshot request took too long."
+        (
+          "Customer business snapshot "
+          + "took too long."
+        )
       );
     }
 
