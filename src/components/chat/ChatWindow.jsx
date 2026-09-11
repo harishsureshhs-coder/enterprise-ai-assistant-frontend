@@ -42,6 +42,7 @@ function ChatWindow({
           return (
             <ThinkingMessage
               key={message.id}
+              message={message}
             />
           );
         }

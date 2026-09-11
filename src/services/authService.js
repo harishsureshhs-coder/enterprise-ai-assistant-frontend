@@ -1,76 +1,123 @@
 export async function getCurrentUser() {
-  /*
-   * LOCAL DEVELOPMENT ONLY
-   *
-   * Azure App Service Easy Auth does not exist
-   * on localhost:5173.
-   */
-  if (
+
+  const authMode =
+    import.meta.env.VITE_AUTH_MODE ||
+    "entra";
+
+
+  const useDevelopmentUser =
+    authMode === "local" ||
     window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1"
-  ) {
+    window.location.hostname === "127.0.0.1";
+
+
+  // =====================================================
+  // LOCAL / TEMPORARY DEV USER
+  // =====================================================
+
+  if (useDevelopmentUser) {
+
     console.warn(
-      "Running locally - using development user."
+      "Development authentication enabled."
     );
 
+
     return {
-      id: "local-dev-user",
-      name: "Local Developer",
-      email: "local-dev@bosch.com",
-      roles: ["app-users"],
-      authenticationType: "local-development",
+      id:
+        "local-dev-user",
+
+      name:
+        "Local Developer",
+
+      email:
+        "local-dev@bosch.com",
+
+      roles: [
+        "app-users",
+      ],
+
+      authenticationType:
+        "local-development",
     };
   }
 
-  /*
-   * AZURE DEPLOYMENT
-   *
-   * App Service Easy Auth provides /.auth/me.
-   */
+
+  // =====================================================
+  // AZURE / ENTRA ID
+  // =====================================================
+
   try {
-    const response = await fetch(
-      "/.auth/me",
-      {
-        method: "GET",
-        credentials: "include",
-        headers: {
-          Accept: "application/json",
-        },
-      }
-    );
+
+    const response =
+      await fetch(
+        "/.auth/me",
+        {
+          method:
+            "GET",
+
+          credentials:
+            "include",
+
+          headers: {
+            Accept:
+              "application/json",
+          },
+        }
+      );
+
 
     if (!response.ok) {
+
       throw new Error(
-        `Unable to retrieve authenticated user. Status: ${response.status}`
+        (
+          "Unable to retrieve authenticated user. " +
+          `Status: ${response.status}`
+        )
       );
     }
 
+
     const data =
       await response.json();
+
 
     if (
       !Array.isArray(data) ||
       data.length === 0
     ) {
+
       throw new Error(
         "No authenticated Entra ID user was returned."
       );
     }
 
+
     const identity =
       data[0];
+
 
     const claims =
       identity.user_claims || [];
 
-    const getClaim = (...types) => {
-      const claim =
-        claims.find((item) =>
-          types.includes(item.typ)
-        );
 
-      return claim?.val || "";
-    };
+    const getClaim =
+      (...types) => {
+
+        const claim =
+          claims.find(
+            (item) =>
+              types.includes(
+                item.typ
+              )
+          );
+
+
+        return (
+          claim?.val ||
+          ""
+        );
+      };
+
 
     const name =
       getClaim(
@@ -79,6 +126,7 @@ export async function getCurrentUser() {
       ) ||
       identity.user_id ||
       "Authenticated User";
+
 
     const email =
       getClaim(
@@ -91,6 +139,7 @@ export async function getCurrentUser() {
       identity.user_id ||
       "";
 
+
     const id =
       getClaim(
         "oid",
@@ -99,11 +148,13 @@ export async function getCurrentUser() {
       identity.user_id ||
       "";
 
+
     const roles =
       claims
         .filter(
           (claim) =>
-            claim.typ === "roles" ||
+            claim.typ ===
+              "roles" ||
             claim.typ ===
               "http://schemas.microsoft.com/ws/2008/06/identity/claims/role"
         )
@@ -112,19 +163,24 @@ export async function getCurrentUser() {
             claim.val
         );
 
+
     return {
       id,
       name,
       email,
       roles,
-      authenticationType: "entra",
+      authenticationType:
+        "entra",
     };
 
+
   } catch (error) {
+
     console.error(
       "Unable to load authenticated Entra user:",
       error
     );
+
 
     return null;
   }

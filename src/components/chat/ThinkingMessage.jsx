@@ -1,7 +1,21 @@
-import { Avatar, Box, Paper, Typography } from "@mui/material";
+import {
+  Avatar,
+  Box,
+  Paper,
+  Typography,
+} from "@mui/material";
+
 import SmartToyOutlinedIcon from "@mui/icons-material/SmartToyOutlined";
 
-function ThinkingMessage() {
+
+function ThinkingMessage({
+  message,
+}) {
+  const loadingText =
+    message?.text ||
+    "Processing your request...";
+
+
   return (
     <Box
       sx={{
@@ -26,17 +40,24 @@ function ThinkingMessage() {
             color: "#FFFFFF",
           }}
         >
-          <SmartToyOutlinedIcon sx={{ fontSize: 18 }} />
+          <SmartToyOutlinedIcon
+            sx={{
+              fontSize: 18,
+            }}
+          />
         </Avatar>
+
 
         <Paper
           elevation={0}
           sx={{
             px: 2,
             py: 1.4,
-            borderRadius: "16px 16px 16px 4px",
+            borderRadius:
+              "16px 16px 16px 4px",
             bgcolor: "#FFFFFF",
-            border: "1px solid #DFE7F0",
+            border:
+              "1px solid #DFE7F0",
           }}
         >
           <Typography
@@ -47,8 +68,9 @@ function ThinkingMessage() {
               fontWeight: 600,
             }}
           >
-            Thinking
+            {loadingText}
           </Typography>
+
 
           <Box
             sx={{
@@ -57,34 +79,52 @@ function ThinkingMessage() {
               alignItems: "center",
             }}
           >
-            {[0, 1, 2].map((item) => (
-              <Box
-                key={item}
-                sx={{
-                  width: 7,
-                  height: 7,
-                  borderRadius: "50%",
-                  bgcolor: "#3478C8",
-                  animation: "thinkingPulse 1.2s infinite ease-in-out",
-                  animationDelay: `${item * 0.16}s`,
-                  "@keyframes thinkingPulse": {
-                    "0%, 80%, 100%": {
-                      transform: "translateY(0)",
-                      opacity: 0.35,
-                    },
-                    "40%": {
-                      transform: "translateY(-5px)",
-                      opacity: 1,
-                    },
-                  },
-                }}
-              />
-            ))}
+            {[0, 1, 2].map(
+              (item) => (
+                <Box
+                  key={item}
+                  sx={{
+                    width: 7,
+                    height: 7,
+                    borderRadius:
+                      "50%",
+
+                    bgcolor:
+                      "#3478C8",
+
+                    animation:
+                      "thinkingPulse 1.2s infinite ease-in-out",
+
+                    animationDelay:
+                      `${item * 0.16}s`,
+
+                    "@keyframes thinkingPulse":
+                      {
+                        "0%, 80%, 100%":
+                          {
+                            transform:
+                              "translateY(0)",
+                            opacity:
+                              0.35,
+                          },
+
+                        "40%": {
+                          transform:
+                            "translateY(-5px)",
+                          opacity:
+                            1,
+                        },
+                      },
+                  }}
+                />
+              )
+            )}
           </Box>
         </Paper>
       </Box>
     </Box>
   );
 }
+
 
 export default ThinkingMessage;

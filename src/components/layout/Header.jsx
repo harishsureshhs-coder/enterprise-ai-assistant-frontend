@@ -9,7 +9,10 @@ import {
 
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 
-function Header({ user }) {
+function Header({
+  user,
+  subtitle = "Executive Agent",
+})  {
   const userName = user?.name || "User";
   const userEmail = user?.email || "";
 
@@ -134,7 +137,7 @@ function Header({ user }) {
                   lineHeight: 1.1,
                 }}
               >
-                Enterprise Analytics
+                {subtitle}
               </Typography>
             </Box>
           </Box>
