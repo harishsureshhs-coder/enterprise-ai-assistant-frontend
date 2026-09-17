@@ -6,7 +6,7 @@ import {
 const MIN_CUSTOMER_SEARCH_LENGTH = 3;
 const CUSTOMER_SEARCH_LIMIT = 20;
 const CUSTOMER_SEARCH_TIMEOUT_MS = 20000;
-const CUSTOMER_SNAPSHOT_TIMEOUT_MS = 30000;
+const CUSTOMER_SNAPSHOT_TIMEOUT_MS = 120000;
 
 
 // =========================================================
