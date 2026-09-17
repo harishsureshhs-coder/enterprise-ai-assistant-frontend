@@ -3,44 +3,22 @@ import {
 } from "../config/apiConfig";
 
 
-// =========================================================
-// CONSTANTS
-// =========================================================
-
-const MIN_CUSTOMER_SEARCH_LENGTH =
-  3;
-
-
-const CUSTOMER_SEARCH_LIMIT =
-  20;
-
-
-// Customer search should be fast.
-// The debounce happens in the component.
-//
-// This timeout protects the browser if the
-// backend/database becomes unavailable.
-
-const CUSTOMER_SEARCH_TIMEOUT_MS =
-  15000;
-
-
-const CUSTOMER_SNAPSHOT_TIMEOUT_MS =
-  30000;
+const MIN_CUSTOMER_SEARCH_LENGTH = 3;
+const CUSTOMER_SEARCH_LIMIT = 20;
+const CUSTOMER_SEARCH_TIMEOUT_MS = 20000;
+const CUSTOMER_SNAPSHOT_TIMEOUT_MS = 30000;
 
 
 // =========================================================
-// READ JSON SAFELY
+// SAFE JSON
 // =========================================================
 
 async function readJsonSafely(
   response
 ) {
-
   try {
 
     return await response.json();
-
 
   } catch {
 
@@ -50,7 +28,7 @@ async function readJsonSafely(
 
 
 // =========================================================
-// GET ERROR MESSAGE
+// API ERROR
 // =========================================================
 
 function getApiErrorMessage(
@@ -58,23 +36,17 @@ function getApiErrorMessage(
   fallbackMessage
 ) {
 
-  const detail =
-    result?.detail;
-
-
   if (
-    typeof detail ===
-    "string" &&
-    detail.trim()
+    typeof result?.detail === "string" &&
+    result.detail.trim()
   ) {
 
-    return detail.trim();
+    return result.detail.trim();
   }
 
 
   if (
-    typeof result?.message ===
-    "string" &&
+    typeof result?.message === "string" &&
     result.message.trim()
   ) {
 
@@ -87,22 +59,114 @@ function getApiErrorMessage(
 
 
 // =========================================================
+// NORMALIZE SEARCH ARGUMENT
+//
+// Supports:
+//
+// searchSalesCustomers("170")
+//
+// searchSalesCustomers({
+//   searchText: "170"
+// })
+//
+// searchSalesCustomers({
+//   search: "170"
+// })
+//
+// Keeps backward compatibility with older frontend code.
+// =========================================================
+
+function normalizeSearchText(
+  input
+) {
+
+  if (
+    input &&
+    typeof input === "object"
+  ) {
+
+    return String(
+      input.searchText
+      ?? input.search_text
+      ?? input.search
+      ?? input.query
+      ?? ""
+    ).trim();
+  }
+
+
+  return String(
+    input ?? ""
+  ).trim();
+}
+
+
+// =========================================================
+// NORMALIZE LIMIT
+// =========================================================
+
+function normalizeSearchLimit(
+  input
+) {
+
+  if (
+    !input ||
+    typeof input !== "object"
+  ) {
+
+    return CUSTOMER_SEARCH_LIMIT;
+  }
+
+
+  const requestedLimit =
+    Number(
+      input.limit
+      ?? CUSTOMER_SEARCH_LIMIT
+    );
+
+
+  if (
+    !Number.isFinite(
+      requestedLimit
+    )
+  ) {
+
+    return CUSTOMER_SEARCH_LIMIT;
+  }
+
+
+  return Math.max(
+    1,
+    Math.min(
+      requestedLimit,
+      CUSTOMER_SEARCH_LIMIT
+    )
+  );
+}
+
+
+// =========================================================
 // SEARCH SALES CUSTOMERS
 // =========================================================
 
 export async function searchSalesCustomers(
-  searchText
+  input
 ) {
 
   const cleanSearch =
-    String(
-      searchText
-      || ""
-    ).trim();
+    normalizeSearchText(
+      input
+    );
+
+
+  const searchLimit =
+    normalizeSearchLimit(
+      input
+    );
 
 
   // -------------------------------------------------------
-  // NEVER CALL BACKEND FOR 1-2 CHARACTERS
+  // Minimum search length
   // -------------------------------------------------------
 
   if (
@@ -119,10 +183,6 @@ export async function searchSalesCustomers(
     cleanSearch
   );
 
-
-  // -------------------------------------------------------
-  // ABORT CONTROLLER
-  // -------------------------------------------------------
 
   const controller =
     new AbortController();
@@ -141,16 +201,6 @@ export async function searchSalesCustomers(
 
   try {
 
-    // -----------------------------------------------------
-    // ENDPOINT
-    //
-    // Example:
-    //
-    // /sales/customers/search
-    //      ?search_text=170015
-    //      &limit=20
-    // -----------------------------------------------------
-
     const url =
       (
         `${API_URL}/sales/customers/search`
@@ -162,9 +212,17 @@ export async function searchSalesCustomers(
         }`
         +
         `&limit=${
-          CUSTOMER_SEARCH_LIMIT
+          encodeURIComponent(
+            searchLimit
+          )
         }`
       );
+
+
+    console.log(
+      "Sales customer search URL:",
+      url
+    );
 
 
     const response =
@@ -181,6 +239,10 @@ export async function searchSalesCustomers(
 
           signal:
             controller.signal,
+
+          // Avoid browser/proxy cache for autocomplete.
+          cache:
+            "no-store",
         }
       );
 
@@ -195,12 +257,25 @@ export async function searchSalesCustomers(
       !response.ok
     ) {
 
+      console.error(
+        "Customer search API error:",
+        {
+          status:
+            response.status,
+
+          url,
+
+          result,
+        }
+      );
+
+
       throw new Error(
         getApiErrorMessage(
           result,
           (
-            "Unable to search "
-            + "Sales customers."
+            "Customer search failed " +
+            `(${response.status}).`
           )
         )
       );
@@ -208,7 +283,12 @@ export async function searchSalesCustomers(
 
 
     // -----------------------------------------------------
-    // CURRENT BACKEND CONTRACT
+    // Preferred API shape:
+    //
+    // {
+    //   status: "success",
+    //   customers: [...]
+    // }
     // -----------------------------------------------------
 
     if (
@@ -222,18 +302,8 @@ export async function searchSalesCustomers(
 
 
     // -----------------------------------------------------
-    // BACKWARD COMPATIBILITY
+    // Backward compatibility
     // -----------------------------------------------------
-
-    if (
-      Array.isArray(
-        result
-      )
-    ) {
-
-      return result;
-    }
-
 
     if (
       Array.isArray(
@@ -245,16 +315,22 @@ export async function searchSalesCustomers(
     }
 
 
+    if (
+      Array.isArray(
+        result
+      )
+    ) {
+
+      return result;
+    }
+
+
     return [];
 
 
   } catch (
     error
   ) {
-
-    // -----------------------------------------------------
-    // TIMEOUT
-    // -----------------------------------------------------
 
     if (
       error?.name ===
@@ -280,7 +356,7 @@ export async function searchSalesCustomers(
 
 
 // =========================================================
-// GET CUSTOMER BUSINESS SNAPSHOT
+// CUSTOMER BUSINESS SNAPSHOT
 // =========================================================
 
 export async function getSalesCustomerSnapshot({
@@ -290,7 +366,7 @@ export async function getSalesCustomerSnapshot({
   const cleanBmdCode =
     String(
       bmdCode
-      || ""
+      ?? ""
     ).trim();
 
 
@@ -321,19 +397,29 @@ export async function getSalesCustomerSnapshot({
 
   try {
 
+    const url =
+      (
+        `${API_URL}/sales/customers/`
+        +
+        `${
+          encodeURIComponent(
+            cleanBmdCode
+          )
+        }`
+        +
+        "/snapshot"
+      );
+
+
+    console.log(
+      "Loading Sales customer snapshot:",
+      cleanBmdCode
+    );
+
+
     const response =
       await fetch(
-        (
-          `${API_URL}/sales/customers/`
-          +
-          `${
-            encodeURIComponent(
-              cleanBmdCode
-            )
-          }`
-          +
-          "/snapshot"
-        ),
+        url,
         {
           method:
             "GET",
@@ -345,6 +431,9 @@ export async function getSalesCustomerSnapshot({
 
           signal:
             controller.signal,
+
+          cache:
+            "no-store",
         }
       );
 
@@ -363,8 +452,8 @@ export async function getSalesCustomerSnapshot({
         getApiErrorMessage(
           result,
           (
-            "Unable to load customer "
-            + "business snapshot."
+            "Unable to load customer snapshot " +
+            `(${response.status}).`
           )
         )
       );
@@ -384,10 +473,7 @@ export async function getSalesCustomerSnapshot({
     ) {
 
       throw new Error(
-        (
-          "Customer business snapshot "
-          + "took too long."
-        )
+        "Customer business snapshot took too long."
       );
     }
 
