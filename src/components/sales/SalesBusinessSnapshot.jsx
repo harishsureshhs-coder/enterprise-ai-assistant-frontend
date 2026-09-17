@@ -40,7 +40,7 @@ function formatInrCompact(value) {
 }
 
 
-function formatMillion(value) {
+function formatMillionCurrency(value) {
   if (
     value === null ||
     value === undefined ||
@@ -55,7 +55,7 @@ function formatMillion(value) {
     return "—";
   }
 
-  return `${new Intl.NumberFormat(
+  return `₹${new Intl.NumberFormat(
     "en-IN",
     {
       minimumFractionDigits: 2,
@@ -150,33 +150,6 @@ function formatPeriod(period) {
 }
 
 
-function formatUpdatedThrough(value) {
-  if (!value) {
-    return "";
-  }
-
-  const d =
-    new Date(value);
-
-  if (
-    Number.isNaN(
-      d.getTime()
-    )
-  ) {
-    return String(value);
-  }
-
-  return d.toLocaleDateString(
-    "en-GB",
-    {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    }
-  );
-}
-
-
 // =========================================================
 // KPI
 // =========================================================
@@ -188,52 +161,29 @@ function Kpi({
   return (
     <Box
       sx={{
-        minWidth:
-          0,
+        minWidth: 0,
       }}
     >
       <Typography
         sx={{
-          fontSize:
-            8.5,
-
-          color:
-            "text.secondary",
-
-          lineHeight:
-            1.05,
-
-          mb:
-            0.15,
+          fontSize: 8.5,
+          color: "text.secondary",
+          lineHeight: 1.05,
+          mb: 0.15,
         }}
       >
         {label}
       </Typography>
 
       <Typography
-        title={
-          String(
-            value ?? ""
-          )
-        }
+        title={String(value ?? "")}
         sx={{
-          fontSize:
-            13,
-
-          fontWeight:
-            800,
-
-          lineHeight:
-            1.1,
-
-          whiteSpace:
-            "nowrap",
-
-          overflow:
-            "hidden",
-
-          textOverflow:
-            "ellipsis",
+          fontSize: 13,
+          fontWeight: 800,
+          lineHeight: 1.1,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
         }}
       >
         {value}
@@ -257,163 +207,78 @@ function CompactRow({
   return (
     <Box
       sx={{
-        display:
-          "grid",
-
-        gridTemplateColumns:
-          "14px minmax(0,1fr) auto",
-
-        gap:
-          0.4,
-
-        py:
-          0.25,
-
-        alignItems:
-          "start",
+        display: "grid",
+        gridTemplateColumns: "14px minmax(0,1fr) auto",
+        gap: 0.4,
+        py: 0.25,
+        alignItems: "start",
       }}
     >
-
       <Typography
         sx={{
-          fontSize:
-            9,
-
-          fontWeight:
-            700,
-
-          lineHeight:
-            1.1,
+          fontSize: 9,
+          fontWeight: 700,
+          lineHeight: 1.1,
         }}
       >
         {index}.
       </Typography>
 
-
-      <Box
-        sx={{
-          minWidth:
-            0,
-        }}
-      >
-
+      <Box sx={{ minWidth: 0 }}>
         <Typography
-          title={
-            title
-          }
+          title={title}
           sx={{
-            fontSize:
-              9,
-
-            fontWeight:
-              700,
-
-            lineHeight:
-              1.1,
-
-            overflow:
-              "hidden",
-
-            textOverflow:
-              "ellipsis",
-
-            whiteSpace:
-              "nowrap",
+            fontSize: 9,
+            fontWeight: 700,
+            lineHeight: 1.1,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
           }}
         >
           {title}
         </Typography>
 
-
         {subtitle ? (
-
           <Typography
-            title={
-              subtitle
-            }
+            title={subtitle}
             sx={{
-              fontSize:
-                7.5,
-
-              color:
-                "text.secondary",
-
-              lineHeight:
-                1.05,
-
-              overflow:
-                "hidden",
-
-              textOverflow:
-                "ellipsis",
-
-              whiteSpace:
-                "nowrap",
+              fontSize: 7.5,
+              color: "text.secondary",
+              lineHeight: 1.05,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
             }}
           >
             {subtitle}
           </Typography>
-
         ) : null}
-
       </Box>
 
-
-      <Box
-        sx={{
-          textAlign:
-            "right",
-        }}
-      >
+      <Box sx={{ textAlign: "right" }}>
+        <Typography
+          sx={{
+            fontSize: 8.5,
+            fontWeight: 700,
+            lineHeight: 1.05,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {formatInrCompact(tgs)}
+        </Typography>
 
         <Typography
           sx={{
-            fontSize:
-              8.5,
-
-            fontWeight:
-              700,
-
-            lineHeight:
-              1.05,
-
-            whiteSpace:
-              "nowrap",
+            fontSize: 7.5,
+            color: "text.secondary",
+            lineHeight: 1.05,
+            whiteSpace: "nowrap",
           }}
         >
-          {
-            formatInrCompact(
-              tgs
-            )
-          }
+          Qty {formatNumber(qty)}
         </Typography>
-
-
-        <Typography
-          sx={{
-            fontSize:
-              7.5,
-
-            color:
-              "text.secondary",
-
-            lineHeight:
-              1.05,
-
-            whiteSpace:
-              "nowrap",
-          }}
-        >
-          Qty{" "}
-          {
-            formatNumber(
-              qty
-            )
-          }
-        </Typography>
-
       </Box>
-
     </Box>
   );
 }
@@ -421,289 +286,175 @@ function CompactRow({
 
 // =========================================================
 // BUSINESS SNAPSHOT
-//
-// This is now the single customer-context display after
-// selection. Customer name/code are not repeated below the
-// search box.
 // =========================================================
 
 function BusinessSnapshot({
   snapshot,
 }) {
-
   if (!snapshot) {
     return null;
   }
-
 
   const customer =
     snapshot.customer ||
     snapshot.customer_context ||
     {};
 
-
   const period =
     snapshot.period ||
     {};
-
 
   const kpis =
     snapshot.business_snapshot ||
     {};
 
-
   const productGroups =
     Array.isArray(
       snapshot.top_product_groups
     )
-      ? snapshot.top_product_groups.slice(
-          0,
-          3
-        )
+      ? snapshot.top_product_groups.slice(0, 3)
       : [];
-
 
   const materials =
     Array.isArray(
       snapshot.top_materials
     )
-      ? snapshot.top_materials.slice(
-          0,
-          3
-        )
+      ? snapshot.top_materials.slice(0, 3)
       : [];
-
 
   const customerName =
     customer.customer_name ||
     customer.bmd_name ||
     "";
 
-
   const customerCode =
     customer.customer_code ||
     customer.bmd_code ||
     "";
 
-
-  const ownerLine = [
-    customer.sales_employee,
+  const salesOffice =
     customer.sales_office_name ||
-      customer.sales_office_code,
+    customer.sales_office_code ||
+    "";
+
+  const region =
     customer.region_name ||
-      customer.region_code,
+    customer.region_code ||
+    "";
+
+  const locationLine = [
+    salesOffice,
+    region,
   ]
     .filter(Boolean)
     .join(" • ");
 
-
   return (
-
     <Paper
       variant="outlined"
       sx={{
-        p:
-          1,
-
-        borderRadius:
-          2.5,
-
-        overflow:
-          "hidden",
-
-        mb:
-          1.25,
+        p: 1,
+        borderRadius: 2.5,
+        overflow: "hidden",
+        mb: 1.25,
       }}
     >
-
-      {/* =================================================
-          COMPACT HEADER
-          ================================================= */}
-
+      {/* HEADER */}
       <Box
         sx={{
-          display:
-            "flex",
-
-          alignItems:
-            "baseline",
-
-          gap:
-            0.6,
-
-          minWidth:
-            0,
+          display: "flex",
+          alignItems: "baseline",
+          gap: 0.6,
+          minWidth: 0,
         }}
       >
-
         <Typography
           sx={{
-            fontSize:
-              11.5,
-
-            fontWeight:
-              800,
-
-            lineHeight:
-              1.1,
-
-            flexShrink:
-              0,
+            fontSize: 11.5,
+            fontWeight: 800,
+            lineHeight: 1.1,
+            flexShrink: 0,
           }}
         >
           Business Snapshot
         </Typography>
 
-
         <Typography
-          title={
-            `${customerName} • ${customerCode}`
-          }
+          title={`${customerName} • ${customerCode}`}
           sx={{
-            fontSize:
-              9.5,
-
-            fontWeight:
-              700,
-
-            lineHeight:
-              1.1,
-
-            minWidth:
-              0,
-
-            overflow:
-              "hidden",
-
-            textOverflow:
-              "ellipsis",
-
-            whiteSpace:
-              "nowrap",
+            fontSize: 9.5,
+            fontWeight: 700,
+            lineHeight: 1.1,
+            minWidth: 0,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
           }}
         >
           {customerName}
-
-          {
-            customerCode
-              ? ` • ${customerCode}`
-              : ""
-          }
+          {customerCode
+            ? ` • ${customerCode}`
+            : ""}
         </Typography>
-
       </Box>
 
-
-      {ownerLine ? (
-
+      {/* SALES OFFICE + REGION ONLY */}
+      {locationLine ? (
         <Typography
-          title={
-            ownerLine
-          }
+          title={locationLine}
           sx={{
-            mt:
-              0.2,
-
-            fontSize:
-              8,
-
-            color:
-              "text.secondary",
-
-            lineHeight:
-              1.05,
-
-            overflow:
-              "hidden",
-
-            textOverflow:
-              "ellipsis",
-
-            whiteSpace:
-              "nowrap",
+            mt: 0.2,
+            fontSize: 8,
+            color: "text.secondary",
+            lineHeight: 1.05,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
           }}
         >
-          {ownerLine}
+          {locationLine}
         </Typography>
-
       ) : null}
 
-
+      {/* MONTH MTD ONLY - NO UPDATED DATE */}
       <Typography
         sx={{
-          mt:
-            0.15,
-
-          fontSize:
-            7.8,
-
-          color:
-            "text.secondary",
-
-          lineHeight:
-            1.05,
+          mt: 0.15,
+          fontSize: 8,
+          color: "text.secondary",
+          lineHeight: 1.05,
         }}
       >
-        {
-          formatPeriod(
-            period
-          )
-        }
-
-        {
-          period.latest_posting_date
-            ? (
-                ` • Updated ${formatUpdatedThrough(
-                  period.latest_posting_date
-                )}`
-              )
-            : ""
-        }
+        {formatPeriod(period)}
       </Typography>
 
-
-      {/* =================================================
-          KPI GRID
-          ================================================= */}
-
+      {/* KPI GRID */}
       <Box
         sx={{
-          display:
-            "grid",
-
-          gridTemplateColumns:
-            "repeat(3,minmax(0,1fr))",
-
-          columnGap:
-            0.9,
-
-          rowGap:
-            0.7,
-
-          py:
-            0.8,
+          display: "grid",
+          gridTemplateColumns: "repeat(3,minmax(0,1fr))",
+          columnGap: 0.9,
+          rowGap: 0.7,
+          py: 0.8,
         }}
       >
-
         <Kpi
           label="TGS"
           value={
-            formatMillion(
+            formatMillionCurrency(
               kpis.total_tgs_mn
             )
           }
         />
 
-
         <Kpi
           label="Monthly Target"
           value={
-            formatMillion(
+            formatMillionCurrency(
               kpis.monthly_target_mn
             )
           }
         />
-
 
         <Kpi
           label="Achievement"
@@ -714,7 +465,6 @@ function BusinessSnapshot({
           }
         />
 
-
         <Kpi
           label="Incentive"
           value={
@@ -724,7 +474,6 @@ function BusinessSnapshot({
           }
         />
 
-
         <Kpi
           label="Qty"
           value={
@@ -733,7 +482,6 @@ function BusinessSnapshot({
             )
           }
         />
-
 
         <Kpi
           label="Materials"
@@ -745,189 +493,106 @@ function BusinessSnapshot({
             )
           }
         />
-
       </Box>
-
 
       <Divider />
 
-
-      {/* =================================================
-          TOP LISTS
-          ================================================= */}
-
+      {/* TOP LISTS */}
       <Box
         sx={{
-          display:
-            "grid",
-
-          gridTemplateColumns:
-            "minmax(0,1fr) minmax(0,1fr)",
-
-          gap:
-            1,
-
-          pt:
-            0.65,
+          display: "grid",
+          gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)",
+          gap: 1,
+          pt: 0.65,
         }}
       >
-
-        <Box
-          sx={{
-            minWidth:
-              0,
-          }}
-        >
-
+        <Box sx={{ minWidth: 0 }}>
           <Typography
             sx={{
-              fontSize:
-                9.5,
-
-              fontWeight:
-                800,
-
-              mb:
-                0.15,
-
-              lineHeight:
-                1.05,
+              fontSize: 9.5,
+              fontWeight: 800,
+              mb: 0.15,
+              lineHeight: 1.05,
             }}
           >
             Top Product Groups
           </Typography>
 
-
-          {
-            productGroups.length
-              ? productGroups.map(
-                  (
-                    item,
-                    index
-                  ) => (
-
-                    <CompactRow
-                      key={
-                        `${item.product_group}-${index}`
-                      }
-                      index={
-                        index + 1
-                      }
-                      title={
-                        item.product_group ||
-                        "Unknown"
-                      }
-                      tgs={
-                        item.tgs
-                      }
-                      qty={
-                        item.quantity_billed
-                      }
-                    />
-
-                  )
+          {productGroups.length
+            ? productGroups.map(
+                (item, index) => (
+                  <CompactRow
+                    key={`${item.product_group}-${index}`}
+                    index={index + 1}
+                    title={
+                      item.product_group ||
+                      "Unknown"
+                    }
+                    tgs={item.tgs}
+                    qty={
+                      item.quantity_billed
+                    }
+                  />
                 )
-              : (
-
-                <Typography
-                  sx={{
-                    fontSize:
-                      8,
-
-                    color:
-                      "text.secondary",
-                  }}
-                >
-                  No product-group data.
-                </Typography>
-
               )
-          }
-
+            : (
+              <Typography
+                sx={{
+                  fontSize: 8,
+                  color: "text.secondary",
+                }}
+              >
+                No product-group data.
+              </Typography>
+            )}
         </Box>
 
-
-        <Box
-          sx={{
-            minWidth:
-              0,
-          }}
-        >
-
+        <Box sx={{ minWidth: 0 }}>
           <Typography
             sx={{
-              fontSize:
-                9.5,
-
-              fontWeight:
-                800,
-
-              mb:
-                0.15,
-
-              lineHeight:
-                1.05,
+              fontSize: 9.5,
+              fontWeight: 800,
+              mb: 0.15,
+              lineHeight: 1.05,
             }}
           >
             Top Materials
           </Typography>
 
-
-          {
-            materials.length
-              ? materials.map(
-                  (
-                    item,
-                    index
-                  ) => (
-
-                    <CompactRow
-                      key={
-                        `${item.material_number}-${index}`
-                      }
-                      index={
-                        index + 1
-                      }
-                      title={
-                        item.material_number ||
-                        "Unknown"
-                      }
-                      subtitle={
-                        item.material_description ||
-                        item.product_group ||
-                        ""
-                      }
-                      tgs={
-                        item.tgs
-                      }
-                      qty={
-                        item.quantity_billed
-                      }
-                    />
-
-                  )
+          {materials.length
+            ? materials.map(
+                (item, index) => (
+                  <CompactRow
+                    key={`${item.material_number}-${index}`}
+                    index={index + 1}
+                    title={
+                      item.material_number ||
+                      "Unknown"
+                    }
+                    subtitle={
+                      item.material_description ||
+                      item.product_group ||
+                      ""
+                    }
+                    tgs={item.tgs}
+                    qty={
+                      item.quantity_billed
+                    }
+                  />
                 )
-              : (
-
-                <Typography
-                  sx={{
-                    fontSize:
-                      8,
-
-                    color:
-                      "text.secondary",
-                  }}
-                >
-                  No material data.
-                </Typography>
-
               )
-          }
-
+            : (
+              <Typography
+                sx={{
+                  fontSize: 8,
+                  color: "text.secondary",
+                }}
+              >
+                No material data.
+              </Typography>
+            )}
         </Box>
-
       </Box>
-
     </Paper>
   );
 }
