@@ -2116,6 +2116,21 @@ function SalesApp() {
           progressStage:
             "starting",
 
+          visual:
+            null,
+
+          rows:
+            [],
+
+          rowCount:
+            0,
+
+          _streamSummary:
+            "",
+
+          _streamInsights:
+            [],
+
           isLoading:
             true,
         },
@@ -2160,10 +2175,23 @@ function SalesApp() {
                   .toLowerCase();
 
 
+              // ===============================================
+              // SUMMARY + KEY INSIGHT TOKENS
+              // ===============================================
+
               if (
                 eventType ===
                 "token"
               ) {
+
+                const section =
+                  String(
+                    progress?.section ||
+                    ""
+                  )
+                    .trim()
+                    .toLowerCase();
+
 
                 const delta =
                   String(
@@ -2187,29 +2215,201 @@ function SalesApp() {
                     previous.map(
                       (
                         message
+                      ) => {
+
+                        if (
+                          message.id !==
+                          loadingId
+                        ) {
+
+                          return message;
+                        }
+
+
+                        const currentSummary =
+                          String(
+                            message._streamSummary ||
+                            ""
+                          );
+
+
+                        const currentInsights =
+                          Array.isArray(
+                            message._streamInsights
+                          )
+                            ? [
+                                ...message._streamInsights
+                              ]
+                            : [];
+
+
+                        if (
+                          section ===
+                          "executive_summary"
+                        ) {
+
+                          const nextSummary =
+                            currentSummary +
+                            delta;
+
+
+                          return {
+                            ...message,
+
+                            engine:
+                              "SQL",
+
+                            _streamSummary:
+                              nextSummary,
+
+                            _streamInsights:
+                              currentInsights,
+
+                            text:
+                              `Executive Summary\n${nextSummary}`,
+
+                            progressStage:
+                              "executive_summary",
+
+                            isLoading:
+                              true,
+                          };
+                        }
+
+
+                        if (
+                          section ===
+                          "key_insight"
+                        ) {
+
+                          const insightIndex =
+                            Number.isInteger(
+                              progress?.index
+                            )
+                              ? progress.index
+                              : Number(
+                                  progress?.index ||
+                                  0
+                                );
+
+
+                          while (
+                            currentInsights.length <=
+                            insightIndex
+                          ) {
+
+                            currentInsights.push(
+                              ""
+                            );
+                          }
+
+
+                          currentInsights[
+                            insightIndex
+                          ] =
+                            String(
+                              currentInsights[
+                                insightIndex
+                              ] ||
+                              ""
+                            )
+                            + delta;
+
+
+                          const insightText =
+                            currentInsights
+                              .filter(
+                                (
+                                  item
+                                ) =>
+                                  String(
+                                    item ||
+                                    ""
+                                  ).trim()
+                              )
+                              .map(
+                                (
+                                  item
+                                ) =>
+                                  `• ${item}`
+                              )
+                              .join(
+                                "\n"
+                              );
+
+
+                          return {
+                            ...message,
+
+                            engine:
+                              "SQL",
+
+                            _streamSummary:
+                              currentSummary,
+
+                            _streamInsights:
+                              currentInsights,
+
+                            text:
+                              (
+                                `Executive Summary\n${currentSummary}`
+                                + "\n\n"
+                                + "Key Insights\n"
+                                + insightText
+                              ),
+
+                            progressStage:
+                              "key_insights",
+
+                            isLoading:
+                              true,
+                          };
+                        }
+
+
+                        return message;
+                      }
+                    )
+                );
+
+
+                return;
+              }
+
+
+              // ===============================================
+              // SECTION COMPLETE
+              // ===============================================
+
+              if (
+                eventType ===
+                "section_complete"
+              ) {
+
+                const section =
+                  String(
+                    progress?.section ||
+                    ""
+                  )
+                    .trim()
+                    .toLowerCase();
+
+
+                setMessages(
+                  (
+                    previous
+                  ) =>
+                    previous.map(
+                      (
+                        message
                       ) =>
                         message.id ===
                           loadingId
                           ? {
                               ...message,
 
-                              text:
-                                (
-                                  message.progressStage ===
-                                  "token_stream"
-                                    ? String(
-                                        message.text ||
-                                        ""
-                                      )
-                                    : ""
-                                )
-                                + delta,
-
                               progressStage:
-                                "token_stream",
-
-                              isLoading:
-                                true,
+                                section,
                             }
                           : message
                     )
@@ -2219,6 +2419,108 @@ function SalesApp() {
                 return;
               }
 
+
+              // ===============================================
+              // CHART
+              // ===============================================
+
+              if (
+                eventType ===
+                "visual"
+              ) {
+
+                setMessages(
+                  (
+                    previous
+                  ) =>
+                    previous.map(
+                      (
+                        message
+                      ) =>
+                        message.id ===
+                          loadingId
+                          ? {
+                              ...message,
+
+                              visual:
+                                (
+                                  progress?.visual &&
+                                  typeof progress.visual ===
+                                    "object"
+                                )
+                                  ? progress.visual
+                                  : null,
+
+                              progressStage:
+                                "visual",
+
+                              isLoading:
+                                false,
+                            }
+                          : message
+                    )
+                );
+
+
+                return;
+              }
+
+
+              // ===============================================
+              // RESULT TABLE
+              // ===============================================
+
+              if (
+                eventType ===
+                "data"
+              ) {
+
+                const streamRows =
+                  Array.isArray(
+                    progress?.rows
+                  )
+                    ? progress.rows
+                    : [];
+
+
+                setMessages(
+                  (
+                    previous
+                  ) =>
+                    previous.map(
+                      (
+                        message
+                      ) =>
+                        message.id ===
+                          loadingId
+                          ? {
+                              ...message,
+
+                              rows:
+                                streamRows,
+
+                              rowCount:
+                                progress?.row_count ??
+                                streamRows.length,
+
+                              progressStage:
+                                "data",
+
+                              isLoading:
+                                false,
+                            }
+                          : message
+                    )
+                );
+
+
+                return;
+              }
+
+
+              // ===============================================
+              // NORMAL PROGRESS
+              // ===============================================
 
               const progressMessage =
                 String(
@@ -2237,24 +2539,29 @@ function SalesApp() {
                     ) =>
                       message.id ===
                         loadingId
-                        ? {
-                            ...message,
+                        ? (
+                            message._streamSummary
+                              ? message
+                              : {
+                                  ...message,
 
-                            text:
-                              progressMessage,
+                                  text:
+                                    progressMessage,
 
-                            progressStage:
-                              progress?.stage ||
-                              message.progressStage ||
-                              null,
+                                  progressStage:
+                                    progress?.stage ||
+                                    message.progressStage ||
+                                    null,
 
-                            isLoading:
-                              true,
-                          }
+                                  isLoading:
+                                    true,
+                                }
+                          )
                         : message
                   )
               );
             },
+
         });
 
 

@@ -38,6 +38,7 @@ function parseSseBlock(
   }
 
 
+  // SSE heartbeat/comment.
   if (
     cleanBlock.startsWith(
       ":"
@@ -394,6 +395,8 @@ export async function sendSalesMessageStream({
         );
 
 
+      // Normalize Windows/HTTP CRLF so event boundaries
+      // are always parsed as "\n\n".
       buffer =
         buffer.replace(
           /\r\n/g,
@@ -474,12 +477,23 @@ export async function sendSalesMessageStream({
 
 
         // ===============================================
-        // TOKEN STREAM
+        // PROGRESSIVE RESPONSE EVENTS
+        //
+        // token             → Summary / Key Insights
+        // section_complete  → Narrative section boundary
+        // visual            → Chart
+        // data              → Result Table
         // ===============================================
 
         if (
-          eventType ===
-          "token"
+          [
+            "token",
+            "section_complete",
+            "visual",
+            "data",
+          ].includes(
+            eventType
+          )
         ) {
 
           if (
@@ -549,6 +563,9 @@ export async function sendSalesMessageStream({
           }
 
 
+          // Backward-compatible support for an endpoint
+          // that sends the result inside the completed
+          // event instead of a separate result event.
           if (
             eventData?.result
           ) {
@@ -562,6 +579,8 @@ export async function sendSalesMessageStream({
     }
 
 
+    // Process any final complete block that arrived
+    // without a trailing blank line.
     const finalBlock =
       parseSseBlock(
         buffer
@@ -587,8 +606,14 @@ export async function sendSalesMessageStream({
 
 
       if (
-        eventType ===
-        "token"
+        [
+          "token",
+          "section_complete",
+          "visual",
+          "data",
+        ].includes(
+          eventType
+        )
       ) {
 
         if (

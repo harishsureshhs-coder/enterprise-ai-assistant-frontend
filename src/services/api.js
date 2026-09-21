@@ -86,6 +86,13 @@ function buildChatPayload(
 
 // =========================================================
 // ABORT / TIMEOUT MANAGER
+//
+// Supports:
+//
+// 1. Internal request timeout
+// 2. Future Stop/Cancel button using AbortController
+//
+// Existing callers can continue using only 3 arguments.
 // =========================================================
 
 function createAbortManager(
@@ -102,6 +109,10 @@ function createAbortManager(
   let externallyAborted =
     false;
 
+
+  // -------------------------------------------------------
+  // External cancellation
+  // -------------------------------------------------------
 
   const handleExternalAbort =
     () => {
@@ -129,6 +140,10 @@ function createAbortManager(
   }
 
 
+  // -------------------------------------------------------
+  // Timeout
+  // -------------------------------------------------------
+
   const timeoutId =
     window.setTimeout(
       () => {
@@ -140,6 +155,10 @@ function createAbortManager(
       timeoutMs
     );
 
+
+  // -------------------------------------------------------
+  // Cleanup
+  // -------------------------------------------------------
 
   function cleanup() {
     window.clearTimeout(
@@ -185,6 +204,10 @@ async function readErrorResponse(
       ) || "";
 
 
+    // -----------------------------------------------------
+    // JSON response
+    // -----------------------------------------------------
+
     if (
       contentType.includes(
         "application/json"
@@ -204,6 +227,10 @@ async function readErrorResponse(
     }
 
 
+    // -----------------------------------------------------
+    // Plain text response
+    // -----------------------------------------------------
+
     const text =
       await response.text();
 
@@ -222,6 +249,9 @@ async function readErrorResponse(
 
 // =========================================================
 // NORMAL NON-STREAMING CHAT
+//
+// Kept for compatibility.
+// Main UI currently uses sendMessageStream().
 // =========================================================
 
 export async function sendMessage(
@@ -343,6 +373,18 @@ export async function sendMessage(
 
 // =========================================================
 // PARSE ONE SSE EVENT BLOCK
+//
+// Backend sends:
+//
+// data: {"type":"progress", ...}
+//
+// OR
+//
+// data: {"type":"result","data":{...}}
+//
+// OR
+//
+// data: {"type":"error","message":"..."}
 // =========================================================
 
 function parseSseEventBlock(
@@ -486,12 +528,23 @@ function processSseEvent(
 
 
   // -------------------------------------------------------
-  // TOKEN STREAM
+  // PROGRESSIVE RESPONSE EVENTS
+  //
+  // token             → Summary / Key Insights
+  // section_complete  → Narrative section boundary
+  // visual            → Chart
+  // data              → Result Table
   // -------------------------------------------------------
 
   if (
-    eventType ===
-    "token"
+    [
+      "token",
+      "section_complete",
+      "visual",
+      "data",
+    ].includes(
+      eventType
+    )
   ) {
     if (
       typeof onProgress ===
@@ -507,7 +560,7 @@ function processSseEvent(
 
 
   // -------------------------------------------------------
-  // ERROR
+  // BACKEND ERROR
   // -------------------------------------------------------
 
   if (
@@ -564,6 +617,23 @@ function processSseEvent(
 
 // =========================================================
 // STREAMING CHAT
+//
+// Existing use:
+//
+// sendMessageStream(
+//   question,
+//   conversationId,
+//   onProgress
+// )
+//
+// Future Stop button:
+//
+// sendMessageStream(
+//   question,
+//   conversationId,
+//   onProgress,
+//   abortController.signal
+// )
 // =========================================================
 
 export async function sendMessageStream(
@@ -589,6 +659,10 @@ export async function sendMessageStream(
 
 
   try {
+    // =====================================================
+    // START SSE REQUEST
+    // =====================================================
+
     const response =
       await fetch(
         buildApiUrl(
@@ -620,6 +694,10 @@ export async function sendMessageStream(
       );
 
 
+    // =====================================================
+    // HTTP ERROR
+    // =====================================================
+
     if (!response.ok) {
       const errorMessage =
         await readErrorResponse(
@@ -633,6 +711,10 @@ export async function sendMessageStream(
     }
 
 
+    // =====================================================
+    // STREAM REQUIRED
+    // =====================================================
+
     if (!response.body) {
       throw new Error(
         (
@@ -642,6 +724,10 @@ export async function sendMessageStream(
       );
     }
 
+
+    // =====================================================
+    // VALIDATE CONTENT TYPE
+    // =====================================================
 
     const contentType =
       response.headers.get(
@@ -664,6 +750,10 @@ export async function sendMessageStream(
     }
 
 
+    // =====================================================
+    // STREAM READER
+    // =====================================================
+
     reader =
       response.body.getReader();
 
@@ -682,6 +772,10 @@ export async function sendMessageStream(
       null;
 
 
+    // =====================================================
+    // READ STREAM
+    // =====================================================
+
     while (true) {
       const {
         value,
@@ -695,6 +789,10 @@ export async function sendMessageStream(
       }
 
 
+      // ---------------------------------------------------
+      // Decode chunk
+      // ---------------------------------------------------
+
       buffer +=
         decoder.decode(
           value,
@@ -704,6 +802,10 @@ export async function sendMessageStream(
         );
 
 
+      // ---------------------------------------------------
+      // Normalize Windows / HTTP CRLF into LF.
+      // ---------------------------------------------------
+
       buffer =
         buffer.replace(
           /\r\n/g,
@@ -711,16 +813,29 @@ export async function sendMessageStream(
         );
 
 
+      // ---------------------------------------------------
+      // Split complete SSE blocks
+      // ---------------------------------------------------
+
       const blocks =
         buffer.split(
           "\n\n"
         );
 
 
+      // ---------------------------------------------------
+      // Last item may be incomplete.
+      // Keep it for next network chunk.
+      // ---------------------------------------------------
+
       buffer =
         blocks.pop() ||
         "";
 
+
+      // ---------------------------------------------------
+      // Process complete events
+      // ---------------------------------------------------
 
       for (
         const block
@@ -752,6 +867,10 @@ export async function sendMessageStream(
     }
 
 
+    // =====================================================
+    // FLUSH DECODER
+    // =====================================================
+
     buffer +=
       decoder.decode();
 
@@ -762,6 +881,10 @@ export async function sendMessageStream(
         "\n"
       );
 
+
+    // =====================================================
+    // PROCESS ANY FINAL BUFFERED EVENT
+    // =====================================================
 
     if (
       buffer.trim()
@@ -809,6 +932,10 @@ export async function sendMessageStream(
     }
 
 
+    // =====================================================
+    // FINAL RESULT REQUIRED
+    // =====================================================
+
     if (!finalResult) {
       throw new Error(
         (
@@ -829,6 +956,10 @@ export async function sendMessageStream(
 
 
   } catch (error) {
+    // =====================================================
+    // ABORT / TIMEOUT
+    // =====================================================
+
     if (
       error?.name ===
       "AbortError"
@@ -862,6 +993,10 @@ export async function sendMessageStream(
     }
 
 
+    // =====================================================
+    // NETWORK FAILURE
+    // =====================================================
+
     if (
       error instanceof TypeError &&
       error.message ===
@@ -876,10 +1011,18 @@ export async function sendMessageStream(
     }
 
 
+    // =====================================================
+    // BACKEND / SSE ERROR
+    // =====================================================
+
     throw error;
 
 
   } finally {
+    // =====================================================
+    // CLEANUP
+    // =====================================================
+
     abortManager.cleanup();
 
 
