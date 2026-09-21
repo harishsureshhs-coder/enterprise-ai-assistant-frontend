@@ -38,7 +38,6 @@ function parseSseBlock(
   }
 
 
-  // SSE heartbeat/comment.
   if (
     cleanBlock.startsWith(
       ":"
@@ -285,10 +284,6 @@ export async function sendSalesMessageStream({
       );
 
 
-    // =====================================================
-    // HTTP ERROR
-    // =====================================================
-
     if (
       !response.ok
     ) {
@@ -311,7 +306,25 @@ export async function sendSalesMessageStream({
 
       } catch {
 
-        // Keep fallback error.
+        try {
+
+          const responseText =
+            await response.text();
+
+
+          if (
+            responseText
+          ) {
+
+            errorText =
+              responseText;
+          }
+
+
+        } catch {
+
+          // Keep fallback.
+        }
       }
 
 
@@ -320,10 +333,6 @@ export async function sendSalesMessageStream({
       );
     }
 
-
-    // =====================================================
-    // STREAM VALIDATION
-    // =====================================================
 
     if (
       !response.body
@@ -352,10 +361,6 @@ export async function sendSalesMessageStream({
     let finalResult =
       null;
 
-
-    // =====================================================
-    // READ STREAM
-    // =====================================================
 
     while (
       true
@@ -389,7 +394,6 @@ export async function sendSalesMessageStream({
         );
 
 
-      // Normalize CRLF.
       buffer =
         buffer.replace(
           /\r\n/g,
@@ -397,14 +401,12 @@ export async function sendSalesMessageStream({
         );
 
 
-      // SSE events are separated by blank lines.
       const blocks =
         buffer.split(
           "\n\n"
         );
 
 
-      // Keep incomplete block for next chunk.
       buffer =
         blocks.pop() ||
         "";
@@ -447,9 +449,9 @@ export async function sendSalesMessageStream({
             .toLowerCase();
 
 
-        // =================================================
-        // PROGRESS EVENT
-        // =================================================
+        // ===============================================
+        // PROGRESS
+        // ===============================================
 
         if (
           eventType ===
@@ -462,18 +464,7 @@ export async function sendSalesMessageStream({
           ) {
 
             onProgress(
-              {
-                type:
-                  "progress",
-
-                stage:
-                  eventData?.stage ||
-                  "processing",
-
-                message:
-                  eventData?.message ||
-                  "Processing your Sales request...",
-              }
+              eventData
             );
           }
 
@@ -482,9 +473,33 @@ export async function sendSalesMessageStream({
         }
 
 
-        // =================================================
-        // ERROR EVENT
-        // =================================================
+        // ===============================================
+        // TOKEN STREAM
+        // ===============================================
+
+        if (
+          eventType ===
+          "token"
+        ) {
+
+          if (
+            typeof onProgress ===
+            "function"
+          ) {
+
+            onProgress(
+              eventData
+            );
+          }
+
+
+          continue;
+        }
+
+
+        // ===============================================
+        // ERROR
+        // ===============================================
 
         if (
           eventType ===
@@ -499,9 +514,9 @@ export async function sendSalesMessageStream({
         }
 
 
-        // =================================================
-        // RESULT EVENT
-        // =================================================
+        // ===============================================
+        // RESULT
+        // ===============================================
 
         if (
           eventType ===
@@ -513,14 +528,13 @@ export async function sendSalesMessageStream({
             eventData?.result ||
             {};
 
-
           continue;
         }
 
 
-        // =================================================
-        // COMPLETED EVENT
-        // =================================================
+        // ===============================================
+        // COMPLETED
+        // ===============================================
 
         if (
           eventType ===
@@ -535,14 +549,6 @@ export async function sendSalesMessageStream({
           }
 
 
-          // Backward-compatible format:
-          //
-          // completed event contains:
-          //
-          // {
-          //   result: {...}
-          // }
-
           if (
             eventData?.result
           ) {
@@ -551,90 +557,88 @@ export async function sendSalesMessageStream({
               eventData.result
             );
           }
-
-
-          continue;
         }
       }
     }
 
 
-    // =====================================================
-    // PROCESS LAST BUFFER
-    //
-    // Handles a final SSE event when the connection closes
-    // without another blank line.
-    // =====================================================
+    const finalBlock =
+      parseSseBlock(
+        buffer
+      );
+
 
     if (
-      buffer.trim()
+      finalBlock
     ) {
 
-      const parsed =
-        parseSseBlock(
-          buffer
-        );
+      const eventData =
+        finalBlock.data;
+
+
+      const eventType =
+        String(
+          eventData?.type ||
+          finalBlock.eventName ||
+          ""
+        )
+          .trim()
+          .toLowerCase();
 
 
       if (
-        parsed
+        eventType ===
+        "token"
       ) {
 
-        const eventData =
-          parsed.data;
-
-
-        const eventType =
-          String(
-            eventData?.type ||
-            parsed.eventName ||
-            ""
-          )
-            .trim()
-            .toLowerCase();
-
-
         if (
-          eventType ===
-          "error"
+          typeof onProgress ===
+          "function"
         ) {
 
-          throw new Error(
-            eventData?.message ||
-            eventData?.detail ||
-            "Sales chat failed."
+          onProgress(
+            eventData
           );
         }
+      }
 
 
-        if (
-          eventType ===
-          "result"
-        ) {
+      if (
+        eventType ===
+        "error"
+      ) {
 
-          finalResult =
-            eventData?.data ||
-            eventData?.result ||
-            {};
-        }
+        throw new Error(
+          eventData?.message ||
+          eventData?.detail ||
+          "Sales chat failed."
+        );
+      }
 
 
-        if (
-          eventType ===
-          "completed" &&
-          eventData?.result
-        ) {
+      if (
+        eventType ===
+        "result"
+      ) {
 
-          finalResult =
-            eventData.result;
-        }
+        finalResult =
+          eventData?.data ||
+          eventData?.result ||
+          {};
+      }
+
+
+      if (
+        eventType ===
+        "completed" &&
+        eventData?.result
+      ) {
+
+        finalResult =
+          eventData.result;
       }
     }
 
-
-    // =====================================================
-    // RETURN RESULT
-    // =====================================================
 
     if (
       finalResult
@@ -653,10 +657,6 @@ export async function sendSalesMessageStream({
     error
   ) {
 
-    // =====================================================
-    // TIMEOUT
-    // =====================================================
-
     if (
       error?.name ===
       "AbortError"
@@ -672,10 +672,6 @@ export async function sendSalesMessageStream({
 
 
   } finally {
-
-    // =====================================================
-    // CLEANUP
-    // =====================================================
 
     window.clearTimeout(
       timeoutId

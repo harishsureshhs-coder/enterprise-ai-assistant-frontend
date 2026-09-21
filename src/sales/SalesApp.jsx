@@ -2151,6 +2151,75 @@ function SalesApp() {
               progress
             ) => {
 
+              const eventType =
+                String(
+                  progress?.type ||
+                  ""
+                )
+                  .trim()
+                  .toLowerCase();
+
+
+              if (
+                eventType ===
+                "token"
+              ) {
+
+                const delta =
+                  String(
+                    progress?.delta ||
+                    ""
+                  );
+
+
+                if (
+                  !delta
+                ) {
+
+                  return;
+                }
+
+
+                setMessages(
+                  (
+                    previous
+                  ) =>
+                    previous.map(
+                      (
+                        message
+                      ) =>
+                        message.id ===
+                          loadingId
+                          ? {
+                              ...message,
+
+                              text:
+                                (
+                                  message.progressStage ===
+                                  "token_stream"
+                                    ? String(
+                                        message.text ||
+                                        ""
+                                      )
+                                    : ""
+                                )
+                                + delta,
+
+                              progressStage:
+                                "token_stream",
+
+                              isLoading:
+                                true,
+                            }
+                          : message
+                    )
+                );
+
+
+                return;
+              }
+
+
               const progressMessage =
                 String(
                   progress?.message ||
@@ -2241,9 +2310,21 @@ function SalesApp() {
 
 
       const answer =
-        response?.answer ||
-        response?.summary ||
-        response?.executive_summary ||
+        (
+          responseEngine ===
+          "SQL"
+            ? (
+                response?.executive_summary ||
+                response?.answer ||
+                response?.summary
+              )
+            : (
+                response?.answer ||
+                response?.summary ||
+                response?.executive_summary
+              )
+        )
+        ||
         (
           responseEngine ===
             "CHAT"
