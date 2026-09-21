@@ -12,6 +12,152 @@ const SALES_CHAT_TIMEOUT_MS =
 
 
 // =========================================================
+// PARSE ONE SSE BLOCK
+// =========================================================
+
+function parseSseBlock(
+  rawBlock
+) {
+
+  const cleanBlock =
+    String(
+      rawBlock || ""
+    )
+      .replace(
+        /\r/g,
+        ""
+      )
+      .trim();
+
+
+  if (
+    !cleanBlock
+  ) {
+
+    return null;
+  }
+
+
+  // SSE heartbeat/comment.
+  if (
+    cleanBlock.startsWith(
+      ":"
+    )
+  ) {
+
+    return null;
+  }
+
+
+  const lines =
+    cleanBlock.split(
+      "\n"
+    );
+
+
+  let eventName =
+    "";
+
+
+  const dataLines =
+    [];
+
+
+  for (
+    const rawLine
+    of lines
+  ) {
+
+    const line =
+      String(
+        rawLine || ""
+      );
+
+
+    if (
+      line.startsWith(
+        ":"
+      )
+    ) {
+
+      continue;
+    }
+
+
+    if (
+      line.startsWith(
+        "event:"
+      )
+    ) {
+
+      eventName =
+        line
+          .slice(
+            6
+          )
+          .trim();
+
+      continue;
+    }
+
+
+    if (
+      line.startsWith(
+        "data:"
+      )
+    ) {
+
+      dataLines.push(
+        line
+          .slice(
+            5
+          )
+          .trimStart()
+      );
+    }
+  }
+
+
+  if (
+    dataLines.length === 0
+  ) {
+
+    return null;
+  }
+
+
+  const jsonText =
+    dataLines.join(
+      "\n"
+    );
+
+
+  let data =
+    null;
+
+
+  try {
+
+    data =
+      JSON.parse(
+        jsonText
+      );
+
+
+  } catch {
+
+    return null;
+  }
+
+
+  return {
+    eventName,
+    data,
+  };
+}
+
+
+// =========================================================
 // SALES CHAT SSE
 // =========================================================
 
@@ -94,6 +240,10 @@ export async function sendSalesMessageStream({
     );
 
 
+  let reader =
+    null;
+
+
   try {
 
     const response =
@@ -135,6 +285,10 @@ export async function sendSalesMessageStream({
       );
 
 
+    // =====================================================
+    // HTTP ERROR
+    // =====================================================
+
     if (
       !response.ok
     ) {
@@ -157,7 +311,7 @@ export async function sendSalesMessageStream({
 
       } catch {
 
-        // Keep fallback.
+        // Keep fallback error.
       }
 
 
@@ -166,6 +320,10 @@ export async function sendSalesMessageStream({
       );
     }
 
+
+    // =====================================================
+    // STREAM VALIDATION
+    // =====================================================
 
     if (
       !response.body
@@ -177,7 +335,7 @@ export async function sendSalesMessageStream({
     }
 
 
-    const reader =
+    reader =
       response.body.getReader();
 
 
@@ -190,6 +348,14 @@ export async function sendSalesMessageStream({
     let buffer =
       "";
 
+
+    let finalResult =
+      null;
+
+
+    // =====================================================
+    // READ STREAM
+    // =====================================================
 
     while (
       true
@@ -206,6 +372,9 @@ export async function sendSalesMessageStream({
         done
       ) {
 
+        buffer +=
+          decoder.decode();
+
         break;
       }
 
@@ -220,121 +389,258 @@ export async function sendSalesMessageStream({
         );
 
 
-      const events =
+      // Normalize CRLF.
+      buffer =
+        buffer.replace(
+          /\r\n/g,
+          "\n"
+        );
+
+
+      // SSE events are separated by blank lines.
+      const blocks =
         buffer.split(
           "\n\n"
         );
 
 
+      // Keep incomplete block for next chunk.
       buffer =
-        events.pop() ||
+        blocks.pop() ||
         "";
 
 
       for (
-        const rawEvent
-        of events
+        const rawBlock
+        of blocks
       ) {
 
-        const lines =
-          rawEvent.split(
-            "\n"
+        const parsed =
+          parseSseBlock(
+            rawBlock
           );
 
 
-        for (
-          const line
-          of lines
+        if (
+          !parsed
+        ) {
+
+          continue;
+        }
+
+
+        const {
+          eventName,
+          data:
+            eventData,
+        } =
+          parsed;
+
+
+        const eventType =
+          String(
+            eventData?.type ||
+            eventName ||
+            ""
+          )
+            .trim()
+            .toLowerCase();
+
+
+        // =================================================
+        // PROGRESS EVENT
+        // =================================================
+
+        if (
+          eventType ===
+          "progress"
         ) {
 
           if (
-            !line.startsWith(
-              "data:"
-            )
+            typeof onProgress ===
+            "function"
           ) {
 
-            continue;
-          }
+            onProgress(
+              {
+                type:
+                  "progress",
 
+                stage:
+                  eventData?.stage ||
+                  "processing",
 
-          const jsonText =
-            line
-              .slice(
-                5
-              )
-              .trim();
-
-
-          if (
-            !jsonText
-          ) {
-
-            continue;
-          }
-
-
-          let eventData =
-            null;
-
-
-          try {
-
-            eventData =
-              JSON.parse(
-                jsonText
-              );
-
-
-          } catch {
-
-            continue;
-          }
-
-
-          if (
-            eventData?.type ===
-            "progress"
-          ) {
-
-            if (
-              typeof onProgress ===
-              "function"
-            ) {
-
-              onProgress(
-                eventData
-              );
-            }
-
-
-            continue;
-          }
-
-
-          if (
-            eventData?.type ===
-            "error"
-          ) {
-
-            throw new Error(
-              eventData?.message ||
-              "Sales chat failed."
+                message:
+                  eventData?.message ||
+                  "Processing your Sales request...",
+              }
             );
           }
 
 
+          continue;
+        }
+
+
+        // =================================================
+        // ERROR EVENT
+        // =================================================
+
+        if (
+          eventType ===
+          "error"
+        ) {
+
+          throw new Error(
+            eventData?.message ||
+            eventData?.detail ||
+            "Sales chat failed."
+          );
+        }
+
+
+        // =================================================
+        // RESULT EVENT
+        // =================================================
+
+        if (
+          eventType ===
+          "result"
+        ) {
+
+          finalResult =
+            eventData?.data ||
+            eventData?.result ||
+            {};
+
+
+          continue;
+        }
+
+
+        // =================================================
+        // COMPLETED EVENT
+        // =================================================
+
+        if (
+          eventType ===
+          "completed"
+        ) {
+
           if (
-            eventData?.type ===
-            "result"
+            finalResult
+          ) {
+
+            return finalResult;
+          }
+
+
+          // Backward-compatible format:
+          //
+          // completed event contains:
+          //
+          // {
+          //   result: {...}
+          // }
+
+          if (
+            eventData?.result
           ) {
 
             return (
-              eventData?.data ||
-              {}
+              eventData.result
             );
           }
+
+
+          continue;
         }
       }
+    }
+
+
+    // =====================================================
+    // PROCESS LAST BUFFER
+    //
+    // Handles a final SSE event when the connection closes
+    // without another blank line.
+    // =====================================================
+
+    if (
+      buffer.trim()
+    ) {
+
+      const parsed =
+        parseSseBlock(
+          buffer
+        );
+
+
+      if (
+        parsed
+      ) {
+
+        const eventData =
+          parsed.data;
+
+
+        const eventType =
+          String(
+            eventData?.type ||
+            parsed.eventName ||
+            ""
+          )
+            .trim()
+            .toLowerCase();
+
+
+        if (
+          eventType ===
+          "error"
+        ) {
+
+          throw new Error(
+            eventData?.message ||
+            eventData?.detail ||
+            "Sales chat failed."
+          );
+        }
+
+
+        if (
+          eventType ===
+          "result"
+        ) {
+
+          finalResult =
+            eventData?.data ||
+            eventData?.result ||
+            {};
+        }
+
+
+        if (
+          eventType ===
+          "completed" &&
+          eventData?.result
+        ) {
+
+          finalResult =
+            eventData.result;
+        }
+      }
+    }
+
+
+    // =====================================================
+    // RETURN RESULT
+    // =====================================================
+
+    if (
+      finalResult
+    ) {
+
+      return finalResult;
     }
 
 
@@ -346,6 +652,10 @@ export async function sendSalesMessageStream({
   } catch (
     error
   ) {
+
+    // =====================================================
+    // TIMEOUT
+    // =====================================================
 
     if (
       error?.name ===
@@ -363,8 +673,28 @@ export async function sendSalesMessageStream({
 
   } finally {
 
+    // =====================================================
+    // CLEANUP
+    // =====================================================
+
     window.clearTimeout(
       timeoutId
     );
+
+
+    if (
+      reader
+    ) {
+
+      try {
+
+        await reader.cancel();
+
+
+      } catch {
+
+        // Stream may already be closed.
+      }
+    }
   }
 }

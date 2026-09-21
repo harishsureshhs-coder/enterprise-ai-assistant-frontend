@@ -559,25 +559,6 @@ function processSseEvent(
 
   // -------------------------------------------------------
   // FINAL RESULT
-  //
-  // Current backend format:
-  //
-  // {
-  //   "type": "result",
-  //   "data": {
-  //      "engine": "SQL",
-  //      "answer": "...",
-  //      ...
-  //   }
-  // }
-  //
-  // App.jsx expects:
-  //
-  // response.engine
-  // response.answer
-  // response.rows
-  //
-  // Therefore we MUST return event.data.
   // -------------------------------------------------------
 
   if (
@@ -594,9 +575,6 @@ function processSseEvent(
 
   // -------------------------------------------------------
   // BACKWARD COMPATIBILITY
-  //
-  // Supports older backend versions that may return
-  // the result directly rather than wrapping it.
   // -------------------------------------------------------
 
   if (
@@ -618,23 +596,6 @@ function processSseEvent(
 
 // =========================================================
 // STREAMING CHAT
-//
-// Existing use:
-//
-// sendMessageStream(
-//   question,
-//   conversationId,
-//   onProgress
-// )
-//
-// Future Stop button:
-//
-// sendMessageStream(
-//   question,
-//   conversationId,
-//   onProgress,
-//   abortController.signal
-// )
 // =========================================================
 
 export async function sendMessageStream(
@@ -790,10 +751,6 @@ export async function sendMessageStream(
       }
 
 
-      // ---------------------------------------------------
-      // Decode chunk
-      // ---------------------------------------------------
-
       buffer +=
         decoder.decode(
           value,
@@ -803,16 +760,7 @@ export async function sendMessageStream(
         );
 
 
-      // ---------------------------------------------------
-      // Normalize Windows / HTTP CRLF into LF.
-      //
-      // Backend currently writes:
-      //
-      // data: {...}\n\n
-      //
-      // But proxies may expose CRLF.
-      // ---------------------------------------------------
-
+      // Normalize CRLF.
       buffer =
         buffer.replace(
           /\r\n/g,
@@ -820,29 +768,16 @@ export async function sendMessageStream(
         );
 
 
-      // ---------------------------------------------------
-      // Split complete SSE blocks
-      // ---------------------------------------------------
-
       const blocks =
         buffer.split(
           "\n\n"
         );
 
 
-      // ---------------------------------------------------
-      // Last item may be incomplete.
-      // Keep it for next network chunk.
-      // ---------------------------------------------------
-
       buffer =
         blocks.pop() ||
         "";
 
-
-      // ---------------------------------------------------
-      // Process complete events
-      // ---------------------------------------------------
 
       for (
         const block
@@ -1017,10 +952,6 @@ export async function sendMessageStream(
       );
     }
 
-
-    // =====================================================
-    // BACKEND / SSE ERROR
-    // =====================================================
 
     throw error;
 

@@ -1347,7 +1347,10 @@ function App() {
             "PLANNER",
 
           text:
-            "Processing your request...",
+            "Understanding your question...",
+
+          progressStage:
+            "understanding",
 
           isLoading:
             true,
@@ -1370,7 +1373,14 @@ function App() {
 
           conversationId,
 
-          () => {
+          (progress) => {
+
+            const progressMessage =
+              String(
+                progress?.message ||
+                "Processing your request..."
+              );
+
 
             setMessages(
               (previous) =>
@@ -1382,7 +1392,15 @@ function App() {
                           ...message,
 
                           text:
-                            "Processing your request...",
+                            progressMessage,
+
+                          progressStage:
+                            progress?.stage ||
+                            message.progressStage ||
+                            null,
+
+                          isLoading:
+                            true,
                         }
                       : message
                 )
@@ -1453,6 +1471,12 @@ function App() {
 
         role:
           "ai",
+
+        isLoading:
+          false,
+
+        progressStage:
+          null,
 
         engine:
           responseEngine,
@@ -1617,6 +1641,12 @@ function App() {
 
         role:
           "ai",
+
+        isLoading:
+          false,
+
+        progressStage:
+          null,
 
         engine:
           "SYSTEM",

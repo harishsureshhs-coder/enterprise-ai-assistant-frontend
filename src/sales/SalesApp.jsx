@@ -2113,6 +2113,9 @@ function SalesApp() {
               ? `Analyzing ${selectedCustomer.bmd_name}...`
               : "Understanding your Sales question...",
 
+          progressStage:
+            "starting",
+
           isLoading:
             true,
         },
@@ -2170,6 +2173,14 @@ function SalesApp() {
 
                             text:
                               progressMessage,
+
+                            progressStage:
+                              progress?.stage ||
+                              message.progressStage ||
+                              null,
+
+                            isLoading:
+                              true,
                           }
                         : message
                   )
@@ -2257,6 +2268,12 @@ function SalesApp() {
 
         role:
           "ai",
+
+        isLoading:
+          false,
+
+        progressStage:
+          null,
 
         engine:
           responseEngine,
@@ -2486,6 +2503,12 @@ function SalesApp() {
 
                     role:
                       "ai",
+
+                    isLoading:
+                      false,
+
+                    progressStage:
+                      null,
 
                     engine:
                       "SYSTEM",
