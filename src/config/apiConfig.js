@@ -1,3 +1,34 @@
+const rawApiUrl =
+  String(
+    import.meta.env.VITE_API_URL || ""
+  ).trim();
+
+
+if (!rawApiUrl) {
+  throw new Error(
+    "VITE_API_URL is not configured."
+  );
+}
+
+
 export const API_URL =
-  import.meta.env.VITE_API_URL ||
-  "https://exesalesdev-fdfkfpb9fmabcadg.eastus-01.azurewebsites.net";
+  rawApiUrl.replace(
+    /\/+$/,
+    ""
+  );
+
+
+console.log(
+  "Frontend API configuration:",
+  {
+    apiUrl:
+      API_URL,
+
+    authMode:
+      import.meta.env.VITE_AUTH_MODE ||
+      "entra",
+
+    mode:
+      import.meta.env.MODE,
+  }
+);

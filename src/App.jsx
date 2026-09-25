@@ -1347,7 +1347,25 @@ function App() {
             "PLANNER",
 
           text:
-            "Processing your request...",
+            "Understanding your question...",
+
+          progressStage:
+            "understanding",
+
+          visual:
+            null,
+
+          rows:
+            [],
+
+          rowCount:
+            0,
+
+          _streamSummary:
+            "",
+
+          _streamInsights:
+            [],
 
           isLoading:
             true,
@@ -1370,7 +1388,354 @@ function App() {
 
           conversationId,
 
-          () => {
+          (progress) => {
+
+            const eventType =
+              String(
+                progress?.type ||
+                ""
+              )
+                .trim()
+                .toLowerCase();
+
+
+            // =================================================
+            // EXECUTIVE SUMMARY + KEY INSIGHTS TOKENS
+            // =================================================
+
+            if (
+              eventType ===
+              "token"
+            ) {
+
+              const section =
+                String(
+                  progress?.section ||
+                  ""
+                )
+                  .trim()
+                  .toLowerCase();
+
+
+              const delta =
+                String(
+                  progress?.delta ||
+                  ""
+                );
+
+
+              if (
+                !delta
+              ) {
+
+                return;
+              }
+
+
+              setMessages(
+                (previous) =>
+                  previous.map(
+                    (message) => {
+
+                      if (
+                        message.id !==
+                        loadingId
+                      ) {
+
+                        return message;
+                      }
+
+
+                      const currentSummary =
+                        String(
+                          message._streamSummary ||
+                          ""
+                        );
+
+
+                      const currentInsights =
+                        Array.isArray(
+                          message._streamInsights
+                        )
+                          ? [
+                              ...message._streamInsights
+                            ]
+                          : [];
+
+
+                      if (
+                        section ===
+                        "executive_summary"
+                      ) {
+
+                        const nextSummary =
+                          currentSummary +
+                          delta;
+
+
+                        return {
+                          ...message,
+
+                          engine:
+                            "SQL",
+
+                          _streamSummary:
+                            nextSummary,
+
+                          _streamInsights:
+                            currentInsights,
+
+                          text:
+                            `Executive Summary\n${nextSummary}`,
+
+                          progressStage:
+                            "executive_summary",
+
+                          isLoading:
+                            true,
+                        };
+                      }
+
+
+                      if (
+                        section ===
+                        "key_insight"
+                      ) {
+
+                        const insightIndex =
+                          Number.isInteger(
+                            progress?.index
+                          )
+                            ? progress.index
+                            : Number(
+                                progress?.index ||
+                                0
+                              );
+
+
+                        while (
+                          currentInsights.length <=
+                          insightIndex
+                        ) {
+
+                          currentInsights.push(
+                            ""
+                          );
+                        }
+
+
+                        currentInsights[
+                          insightIndex
+                        ] =
+                          String(
+                            currentInsights[
+                              insightIndex
+                            ] ||
+                            ""
+                          )
+                          + delta;
+
+
+                        const insightText =
+                          currentInsights
+                            .filter(
+                              (
+                                item
+                              ) =>
+                                String(
+                                  item ||
+                                  ""
+                                ).trim()
+                            )
+                            .map(
+                              (
+                                item
+                              ) =>
+                                `• ${item}`
+                            )
+                            .join(
+                              "\n"
+                            );
+
+
+                        return {
+                          ...message,
+
+                          engine:
+                            "SQL",
+
+                          _streamSummary:
+                            currentSummary,
+
+                          _streamInsights:
+                            currentInsights,
+
+                          text:
+                            (
+                              `Executive Summary\n${currentSummary}`
+                              + "\n\n"
+                              + "Key Insights\n"
+                              + insightText
+                            ),
+
+                          progressStage:
+                            "key_insights",
+
+                          isLoading:
+                            true,
+                        };
+                      }
+
+
+                      return message;
+                    }
+                  )
+              );
+
+
+              return;
+            }
+
+
+            // =================================================
+            // SECTION COMPLETE
+            // =================================================
+
+            if (
+              eventType ===
+              "section_complete"
+            ) {
+
+              const section =
+                String(
+                  progress?.section ||
+                  ""
+                )
+                  .trim()
+                  .toLowerCase();
+
+
+              setMessages(
+                (previous) =>
+                  previous.map(
+                    (message) =>
+                      message.id ===
+                      loadingId
+                        ? {
+                            ...message,
+
+                            progressStage:
+                              section,
+                          }
+                        : message
+                  )
+              );
+
+
+              return;
+            }
+
+
+            // =================================================
+            // CHART — ALWAYS AFTER NARRATIVE
+            // =================================================
+
+            if (
+              eventType ===
+              "visual"
+            ) {
+
+              setMessages(
+                (previous) =>
+                  previous.map(
+                    (message) =>
+                      message.id ===
+                      loadingId
+                        ? {
+                            ...message,
+
+                            visual:
+                              (
+                                progress?.visual &&
+                                typeof progress.visual ===
+                                  "object"
+                              )
+                                ? progress.visual
+                                : null,
+
+                            progressStage:
+                              "visual",
+
+                            isLoading:
+                              false,
+                          }
+                        : message
+                  )
+              );
+
+
+              return;
+            }
+
+
+            // =================================================
+            // RESULT TABLE — ALWAYS AFTER CHART
+            // =================================================
+
+            if (
+              eventType ===
+              "data"
+            ) {
+
+              const streamRows =
+                Array.isArray(
+                  progress?.rows
+                )
+                  ? progress.rows
+                  : [];
+
+
+              setMessages(
+                (previous) =>
+                  previous.map(
+                    (message) =>
+                      message.id ===
+                      loadingId
+                        ? {
+                            ...message,
+
+                            rows:
+                              streamRows,
+
+                            rowCount:
+                              progress?.row_count ??
+                              streamRows.length,
+
+                            progressStage:
+                              "data",
+
+                            isLoading:
+                              false,
+                          }
+                        : message
+                  )
+              );
+
+
+              return;
+            }
+
+
+            // =================================================
+            // NORMAL PROGRESS
+            // =================================================
+
+            const progressMessage =
+              String(
+                progress?.message ||
+                "Processing your request..."
+              );
+
 
             setMessages(
               (previous) =>
@@ -1378,16 +1743,29 @@ function App() {
                   (message) =>
                     message.id ===
                     loadingId
-                      ? {
-                          ...message,
+                      ? (
+                          message._streamSummary
+                            ? message
+                            : {
+                                ...message,
 
-                          text:
-                            "Processing your request...",
-                        }
+                                text:
+                                  progressMessage,
+
+                                progressStage:
+                                  progress?.stage ||
+                                  message.progressStage ||
+                                  null,
+
+                                isLoading:
+                                  true,
+                              }
+                        )
                       : message
                 )
             );
           }
+
         );
 
 
@@ -1430,10 +1808,23 @@ function App() {
       // ===================================================
 
       const answer =
-        response?.answer ||
-        response?.summary ||
-        response
-          ?.executive_summary ||
+        (
+          responseEngine ===
+          "SQL"
+            ? (
+                response
+                  ?.executive_summary ||
+                response?.answer ||
+                response?.summary
+              )
+            : (
+                response?.answer ||
+                response?.summary ||
+                response
+                  ?.executive_summary
+              )
+        )
+        ||
         (
           responseEngine ===
             "CHAT"
@@ -1453,6 +1844,12 @@ function App() {
 
         role:
           "ai",
+
+        isLoading:
+          false,
+
+        progressStage:
+          null,
 
         engine:
           responseEngine,
@@ -1617,6 +2014,12 @@ function App() {
 
         role:
           "ai",
+
+        isLoading:
+          false,
+
+        progressStage:
+          null,
 
         engine:
           "SYSTEM",

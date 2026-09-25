@@ -202,6 +202,49 @@
 
 
 /* =========================================================
+   SALES CHAT MICROPHONE
+
+   Keep the chat mic compact in the center composer.
+   Visit Recording remains in the right customer panel.
+   ========================================================= */
+
+.sales-center-controls
+.chat-input .chat-mic-button {
+  flex: 0 0 42px;
+
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+
+  margin: 0;
+  padding: 0;
+
+  border-radius: 50%;
+}
+
+.sales-center-controls
+.chat-mic-status,
+.sales-center-controls
+.chat-mic-error {
+  margin: 2px 0 4px;
+  padding-left: 2px;
+
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.sales-center-controls
+.chat-mic-status {
+  color: #5e6f84;
+}
+
+.sales-center-controls
+.chat-mic-error {
+  color: #b42318;
+}
+
+
+/* =========================================================
    CENTER FOOTER
    ========================================================= */
 
@@ -884,5 +927,21 @@
   .chat-input {
     gap:
       7px;
+  }
+
+
+  .sales-center-controls
+  .chat-input .chat-mic-button {
+    flex-basis:
+      40px;
+
+    width:
+      40px;
+
+    height:
+      40px;
+
+    min-width:
+      40px;
   }
 }

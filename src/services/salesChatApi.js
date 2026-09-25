@@ -12,6 +12,152 @@ const SALES_CHAT_TIMEOUT_MS =
 
 
 // =========================================================
+// PARSE ONE SSE BLOCK
+// =========================================================
+
+function parseSseBlock(
+  rawBlock
+) {
+
+  const cleanBlock =
+    String(
+      rawBlock || ""
+    )
+      .replace(
+        /\r/g,
+        ""
+      )
+      .trim();
+
+
+  if (
+    !cleanBlock
+  ) {
+
+    return null;
+  }
+
+
+  // SSE heartbeat/comment.
+  if (
+    cleanBlock.startsWith(
+      ":"
+    )
+  ) {
+
+    return null;
+  }
+
+
+  const lines =
+    cleanBlock.split(
+      "\n"
+    );
+
+
+  let eventName =
+    "";
+
+
+  const dataLines =
+    [];
+
+
+  for (
+    const rawLine
+    of lines
+  ) {
+
+    const line =
+      String(
+        rawLine || ""
+      );
+
+
+    if (
+      line.startsWith(
+        ":"
+      )
+    ) {
+
+      continue;
+    }
+
+
+    if (
+      line.startsWith(
+        "event:"
+      )
+    ) {
+
+      eventName =
+        line
+          .slice(
+            6
+          )
+          .trim();
+
+      continue;
+    }
+
+
+    if (
+      line.startsWith(
+        "data:"
+      )
+    ) {
+
+      dataLines.push(
+        line
+          .slice(
+            5
+          )
+          .trimStart()
+      );
+    }
+  }
+
+
+  if (
+    dataLines.length === 0
+  ) {
+
+    return null;
+  }
+
+
+  const jsonText =
+    dataLines.join(
+      "\n"
+    );
+
+
+  let data =
+    null;
+
+
+  try {
+
+    data =
+      JSON.parse(
+        jsonText
+      );
+
+
+  } catch {
+
+    return null;
+  }
+
+
+  return {
+    eventName,
+    data,
+  };
+}
+
+
+// =========================================================
 // SALES CHAT SSE
 // =========================================================
 
@@ -94,6 +240,10 @@ export async function sendSalesMessageStream({
     );
 
 
+  let reader =
+    null;
+
+
   try {
 
     const response =
@@ -157,7 +307,25 @@ export async function sendSalesMessageStream({
 
       } catch {
 
-        // Keep fallback.
+        try {
+
+          const responseText =
+            await response.text();
+
+
+          if (
+            responseText
+          ) {
+
+            errorText =
+              responseText;
+          }
+
+
+        } catch {
+
+          // Keep fallback.
+        }
       }
 
 
@@ -177,7 +345,7 @@ export async function sendSalesMessageStream({
     }
 
 
-    const reader =
+    reader =
       response.body.getReader();
 
 
@@ -189,6 +357,10 @@ export async function sendSalesMessageStream({
 
     let buffer =
       "";
+
+
+    let finalResult =
+      null;
 
 
     while (
@@ -206,6 +378,9 @@ export async function sendSalesMessageStream({
         done
       ) {
 
+        buffer +=
+          decoder.decode();
+
         break;
       }
 
@@ -220,121 +395,281 @@ export async function sendSalesMessageStream({
         );
 
 
-      const events =
+      // Normalize Windows/HTTP CRLF so event boundaries
+      // are always parsed as "\n\n".
+      buffer =
+        buffer.replace(
+          /\r\n/g,
+          "\n"
+        );
+
+
+      const blocks =
         buffer.split(
           "\n\n"
         );
 
 
       buffer =
-        events.pop() ||
+        blocks.pop() ||
         "";
 
 
       for (
-        const rawEvent
-        of events
+        const rawBlock
+        of blocks
       ) {
 
-        const lines =
-          rawEvent.split(
-            "\n"
+        const parsed =
+          parseSseBlock(
+            rawBlock
           );
 
 
-        for (
-          const line
-          of lines
+        if (
+          !parsed
+        ) {
+
+          continue;
+        }
+
+
+        const {
+          eventName,
+          data:
+            eventData,
+        } =
+          parsed;
+
+
+        const eventType =
+          String(
+            eventData?.type ||
+            eventName ||
+            ""
+          )
+            .trim()
+            .toLowerCase();
+
+
+        // ===============================================
+        // PROGRESS
+        // ===============================================
+
+        if (
+          eventType ===
+          "progress"
         ) {
 
           if (
-            !line.startsWith(
-              "data:"
-            )
+            typeof onProgress ===
+            "function"
           ) {
 
-            continue;
-          }
-
-
-          const jsonText =
-            line
-              .slice(
-                5
-              )
-              .trim();
-
-
-          if (
-            !jsonText
-          ) {
-
-            continue;
-          }
-
-
-          let eventData =
-            null;
-
-
-          try {
-
-            eventData =
-              JSON.parse(
-                jsonText
-              );
-
-
-          } catch {
-
-            continue;
-          }
-
-
-          if (
-            eventData?.type ===
-            "progress"
-          ) {
-
-            if (
-              typeof onProgress ===
-              "function"
-            ) {
-
-              onProgress(
-                eventData
-              );
-            }
-
-
-            continue;
-          }
-
-
-          if (
-            eventData?.type ===
-            "error"
-          ) {
-
-            throw new Error(
-              eventData?.message ||
-              "Sales chat failed."
+            onProgress(
+              eventData
             );
           }
 
 
+          continue;
+        }
+
+
+        // ===============================================
+        // PROGRESSIVE RESPONSE EVENTS
+        //
+        // token             → Summary / Key Insights
+        // section_complete  → Narrative section boundary
+        // visual            → Chart
+        // data              → Result Table
+        // ===============================================
+
+        if (
+          [
+            "token",
+            "section_complete",
+            "visual",
+            "data",
+          ].includes(
+            eventType
+          )
+        ) {
+
           if (
-            eventData?.type ===
-            "result"
+            typeof onProgress ===
+            "function"
+          ) {
+
+            onProgress(
+              eventData
+            );
+          }
+
+
+          continue;
+        }
+
+
+        // ===============================================
+        // ERROR
+        // ===============================================
+
+        if (
+          eventType ===
+          "error"
+        ) {
+
+          throw new Error(
+            eventData?.message ||
+            eventData?.detail ||
+            "Sales chat failed."
+          );
+        }
+
+
+        // ===============================================
+        // RESULT
+        // ===============================================
+
+        if (
+          eventType ===
+          "result"
+        ) {
+
+          finalResult =
+            eventData?.data ||
+            eventData?.result ||
+            {};
+
+          continue;
+        }
+
+
+        // ===============================================
+        // COMPLETED
+        // ===============================================
+
+        if (
+          eventType ===
+          "completed"
+        ) {
+
+          if (
+            finalResult
+          ) {
+
+            return finalResult;
+          }
+
+
+          // Backward-compatible support for an endpoint
+          // that sends the result inside the completed
+          // event instead of a separate result event.
+          if (
+            eventData?.result
           ) {
 
             return (
-              eventData?.data ||
-              {}
+              eventData.result
             );
           }
         }
       }
+    }
+
+
+    // Process any final complete block that arrived
+    // without a trailing blank line.
+    const finalBlock =
+      parseSseBlock(
+        buffer
+      );
+
+
+    if (
+      finalBlock
+    ) {
+
+      const eventData =
+        finalBlock.data;
+
+
+      const eventType =
+        String(
+          eventData?.type ||
+          finalBlock.eventName ||
+          ""
+        )
+          .trim()
+          .toLowerCase();
+
+
+      if (
+        [
+          "token",
+          "section_complete",
+          "visual",
+          "data",
+        ].includes(
+          eventType
+        )
+      ) {
+
+        if (
+          typeof onProgress ===
+          "function"
+        ) {
+
+          onProgress(
+            eventData
+          );
+        }
+      }
+
+
+      if (
+        eventType ===
+        "error"
+      ) {
+
+        throw new Error(
+          eventData?.message ||
+          eventData?.detail ||
+          "Sales chat failed."
+        );
+      }
+
+
+      if (
+        eventType ===
+        "result"
+      ) {
+
+        finalResult =
+          eventData?.data ||
+          eventData?.result ||
+          {};
+      }
+
+
+      if (
+        eventType ===
+        "completed" &&
+        eventData?.result
+      ) {
+
+        finalResult =
+          eventData.result;
+      }
+    }
+
+
+    if (
+      finalResult
+    ) {
+
+      return finalResult;
     }
 
 
@@ -366,5 +701,21 @@ export async function sendSalesMessageStream({
     window.clearTimeout(
       timeoutId
     );
+
+
+    if (
+      reader
+    ) {
+
+      try {
+
+        await reader.cancel();
+
+
+      } catch {
+
+        // Stream may already be closed.
+      }
+    }
   }
 }

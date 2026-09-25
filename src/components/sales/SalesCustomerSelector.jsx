@@ -16,71 +16,54 @@ import {
 } from "../../services/salesCustomerApi";
 
 
+const MIN_SEARCH_LENGTH = 3;
+const SEARCH_DEBOUNCE_MS = 300;
+
+
+// =========================================================
+// COMPACT SALES CUSTOMER SELECTOR
+//
+// Customer name/code are shown only in the dropdown.
+// After selection, BusinessSnapshot becomes the single place
+// where customer context is displayed.
+// =========================================================
+
 function SalesCustomerSelector({
   selectedCustomer,
   onCustomerSelect,
   disabled = false,
 }) {
 
-  // =====================================================
-  // SEARCH TEXT
-  // =====================================================
-
   const [
     searchText,
     setSearchText,
   ] = useState("");
-
-
-  // =====================================================
-  // SEARCH RESULTS
-  // =====================================================
 
   const [
     customers,
     setCustomers,
   ] = useState([]);
 
-
-  // =====================================================
-  // SEARCH STATUS
-  // =====================================================
-
   const [
     isSearching,
     setIsSearching,
   ] = useState(false);
-
-
-  // =====================================================
-  // ERROR
-  // =====================================================
 
   const [
     error,
     setError,
   ] = useState(null);
 
-
-  // =====================================================
-  // DEBOUNCE TIMER
-  // =====================================================
-
   const searchTimerRef =
     useRef(null);
 
+  const searchRequestIdRef =
+    useRef(0);
 
-  // =====================================================
-  // SEARCH PRIMARY CUSTOMERS
-  //
-  // The API call waits 350ms after typing.
-  //
-  // Example:
-  //
-  // PANU DIESEL
-  //     ↓
-  // GET /sales/customers?search=PANU DIESEL
-  // =====================================================
+
+  // =======================================================
+  // SEARCH
+  // =======================================================
 
   useEffect(
     () => {
@@ -91,10 +74,6 @@ function SalesCustomerSelector({
         ).trim();
 
 
-      // -------------------------------------------------
-      // CLEAR EXISTING TIMER
-      // -------------------------------------------------
-
       if (
         searchTimerRef.current
       ) {
@@ -103,42 +82,32 @@ function SalesCustomerSelector({
           searchTimerRef.current
         );
 
-
         searchTimerRef.current =
           null;
       }
 
 
-      // -------------------------------------------------
-      // REQUIRE AT LEAST 2 CHARACTERS
-      // -------------------------------------------------
+      const requestId =
+        ++searchRequestIdRef.current;
+
+
+      // Remove stale dropdown rows immediately.
+      setCustomers([]);
+      setError(null);
+
 
       if (
-        cleanSearch.length < 2
+        cleanSearch.length <
+        MIN_SEARCH_LENGTH
       ) {
 
-        setCustomers(
-          []
-        );
-
-
-        setError(
-          null
-        );
-
-
-        setIsSearching(
-          false
-        );
-
-
+        setIsSearching(false);
         return;
       }
 
 
-      // -------------------------------------------------
-      // DEBOUNCED SEARCH
-      // -------------------------------------------------
+      setIsSearching(true);
+
 
       searchTimerRef.current =
         window.setTimeout(
@@ -146,25 +115,9 @@ function SalesCustomerSelector({
 
             try {
 
-              setIsSearching(
-                true
-              );
-
-
-              setError(
-                null
-              );
-
-
-              console.log(
-                "Searching primary Sales customers:",
-                cleanSearch
-              );
-
-
               const results =
                 await searchSalesCustomers({
-                  search:
+                  searchText:
                     cleanSearch,
 
                   limit:
@@ -172,10 +125,13 @@ function SalesCustomerSelector({
                 });
 
 
-              console.log(
-                "Primary customer search results:",
-                results
-              );
+              if (
+                requestId !==
+                searchRequestIdRef.current
+              ) {
+
+                return;
+              }
 
 
               setCustomers(
@@ -187,7 +143,18 @@ function SalesCustomerSelector({
               );
 
 
-            } catch (searchError) {
+            } catch (
+              searchError
+            ) {
+
+              if (
+                requestId !==
+                searchRequestIdRef.current
+              ) {
+
+                return;
+              }
+
 
               console.error(
                 "Unable to search Sales customers:",
@@ -195,10 +162,7 @@ function SalesCustomerSelector({
               );
 
 
-              setCustomers(
-                []
-              );
-
+              setCustomers([]);
 
               setError(
                 searchError instanceof Error
@@ -209,19 +173,19 @@ function SalesCustomerSelector({
 
             } finally {
 
-              setIsSearching(
-                false
-              );
+              if (
+                requestId ===
+                searchRequestIdRef.current
+              ) {
+
+                setIsSearching(false);
+              }
             }
 
           },
-          350
+          SEARCH_DEBOUNCE_MS
         );
 
-
-      // -------------------------------------------------
-      // CLEANUP TIMER
-      // -------------------------------------------------
 
       return () => {
 
@@ -232,7 +196,6 @@ function SalesCustomerSelector({
           window.clearTimeout(
             searchTimerRef.current
           );
-
 
           searchTimerRef.current =
             null;
@@ -246,19 +209,21 @@ function SalesCustomerSelector({
   );
 
 
-  // =====================================================
-  // CUSTOMER SELECTED
-  // =====================================================
+  // =======================================================
+  // SELECT CUSTOMER
+  // =======================================================
 
   function handleCustomerChange(
     event,
     customer
   ) {
 
-    console.log(
-      "Selected primary customer:",
-      customer
-    );
+    setSearchText("");
+    setCustomers([]);
+    setError(null);
+
+    searchRequestIdRef.current +=
+      1;
 
 
     if (
@@ -273,11 +238,9 @@ function SalesCustomerSelector({
   }
 
 
-  // =====================================================
-  // BUILD DISPLAY LABEL
-  //
-  // PANU DIESEL (17002800)
-  // =====================================================
+  // =======================================================
+  // DISPLAY LABEL
+  // =======================================================
 
   function getCustomerLabel(
     customer
@@ -289,39 +252,36 @@ function SalesCustomerSelector({
     }
 
 
-    const customerName =
+    const name =
       String(
         customer.bmd_name || ""
       ).trim();
 
-
-    const customerCode =
+    const code =
       String(
         customer.bmd_code || ""
       ).trim();
 
 
     if (
-      customerName &&
-      customerCode
+      name &&
+      code
     ) {
 
-      return (
-        `${customerName} (${customerCode})`
-      );
+      return `${name} (${code})`;
     }
 
 
     return (
-      customerName ||
-      customerCode
+      name ||
+      code
     );
   }
 
 
-  // =====================================================
+  // =======================================================
   // UI
-  // =====================================================
+  // =======================================================
 
   return (
 
@@ -331,61 +291,62 @@ function SalesCustomerSelector({
           "1px solid #d9e2ec",
 
         borderRadius:
-          2,
+          2.5,
 
         backgroundColor:
           "#ffffff",
 
-        p:
-          2,
+        px:
+          1.5,
+
+        py:
+          1.25,
 
         mb:
-          2,
+          1.25,
       }}
     >
 
-      {/* =================================================
-          HEADER
-          ================================================= */}
-
       <Typography
-        variant="subtitle1"
         sx={{
+          fontSize:
+            13,
+
           fontWeight:
-            700,
+            800,
 
           color:
             "#0f3557",
 
+          lineHeight:
+            1.15,
+
           mb:
-            0.5,
+            0.2,
         }}
       >
-
         Primary Customer
-
       </Typography>
 
 
       <Typography
-        variant="body2"
         sx={{
+          fontSize:
+            10,
+
           color:
             "#667788",
 
+          lineHeight:
+            1.15,
+
           mb:
-            1.5,
+            0.8,
         }}
       >
-
         Search using BMD name or BMD code.
-
       </Typography>
 
-
-      {/* =================================================
-          AUTOCOMPLETE
-          ================================================= */}
 
       <Autocomplete
         options={
@@ -393,63 +354,44 @@ function SalesCustomerSelector({
         }
 
         value={
-          selectedCustomer
+          selectedCustomer || null
         }
 
         loading={
           isSearching
         }
 
-        loadingText=
+        loadingText={
           "Searching customers..."
+        }
 
         disabled={
           disabled
         }
-
-        // -------------------------------------------------
-        // Backend already filters customer results.
-        //
-        // Do not let MUI perform another filter.
-        // -------------------------------------------------
 
         filterOptions={
           (options) =>
             options
         }
 
-        // -------------------------------------------------
-        // Compare selected customer using BMD code.
-        // -------------------------------------------------
-
         isOptionEqualToValue={
           (
             option,
             value
-          ) => {
-
-            return (
-              String(
-                option?.bmd_code || ""
-              ) ===
-              String(
-                value?.bmd_code || ""
-              )
-            );
-          }
+          ) => (
+            String(
+              option?.bmd_code || ""
+            ).trim()
+            ===
+            String(
+              value?.bmd_code || ""
+            ).trim()
+          )
         }
-
-        // -------------------------------------------------
-        // Text shown after selection.
-        // -------------------------------------------------
 
         getOptionLabel={
           getCustomerLabel
         }
-
-        // -------------------------------------------------
-        // USER TYPING
-        // -------------------------------------------------
 
         onInputChange={
           (
@@ -466,6 +408,8 @@ function SalesCustomerSelector({
               setSearchText(
                 value
               );
+
+              return;
             }
 
 
@@ -474,56 +418,47 @@ function SalesCustomerSelector({
               "clear"
             ) {
 
-              setSearchText(
-                ""
-              );
+              searchRequestIdRef.current +=
+                1;
+
+              setSearchText("");
+              setCustomers([]);
+              setError(null);
+              setIsSearching(false);
 
 
-              setCustomers(
-                []
-              );
+              if (
+                typeof onCustomerSelect ===
+                "function"
+              ) {
 
-
-              setError(
-                null
-              );
+                onCustomerSelect(
+                  null
+                );
+              }
             }
           }
         }
-
-        // -------------------------------------------------
-        // CUSTOMER SELECTED
-        // -------------------------------------------------
 
         onChange={
           handleCustomerChange
         }
 
-        // -------------------------------------------------
-        // EMPTY RESULT MESSAGE
-        // -------------------------------------------------
-
         noOptionsText={
-          searchText.trim().length < 2
-            ? "Enter at least 2 characters"
+          searchText.trim().length <
+          MIN_SEARCH_LENGTH
+            ? (
+                "Enter at least " +
+                `${MIN_SEARCH_LENGTH} characters`
+              )
             : "No primary customers found"
         }
-
-        // -------------------------------------------------
-        // SEARCH RESULT DISPLAY
-        // -------------------------------------------------
 
         renderOption={
           (
             props,
             option
           ) => {
-
-            /*
-             * React may include key inside props.
-             *
-             * Do not spread key through {...props}.
-             */
 
             const {
               key,
@@ -554,53 +489,59 @@ function SalesCustomerSelector({
                     "flex-start !important",
 
                   py:
-                    1,
+                    0.75,
                 }}
               >
 
                 <Typography
-                  variant="body2"
                   sx={{
+                    fontSize:
+                      12,
+
                     fontWeight:
                       700,
 
                     color:
                       "#0f3557",
+
+                    lineHeight:
+                      1.15,
                   }}
                 >
-
-                  {option.bmd_name}
-
+                  {
+                    option.bmd_name ||
+                    "Unknown Customer"
+                  }
                 </Typography>
 
 
                 <Typography
-                  variant="caption"
                   sx={{
+                    fontSize:
+                      9.5,
+
                     color:
                       "#667788",
+
+                    lineHeight:
+                      1.1,
+
+                    mt:
+                      0.15,
                   }}
                 >
-
                   BMD:{" "}
-                  {option.bmd_code}
-
-
-                  {option.region_code
-                    ? (
-                        ` • ${option.region_code}`
-                      )
-                    : ""
+                  {
+                    option.bmd_code
                   }
 
-
-                  {option.region_zone_code
-                    ? (
-                        ` • ${option.region_zone_code}`
-                      )
-                    : ""
+                  {
+                    option.sales_office_code
+                      ? (
+                          ` • ${option.sales_office_code}`
+                        )
+                      : ""
                   }
-
                 </Typography>
 
               </Box>
@@ -608,25 +549,19 @@ function SalesCustomerSelector({
           }
         }
 
-        // -------------------------------------------------
-        // SEARCH INPUT
-        //
-        // IMPORTANT:
-        //
-        // Do NOT override InputProps/endAdornment here.
-        // MUI Autocomplete manages it internally.
-        // -------------------------------------------------
-
         renderInput={
-          (params) => (
+          (
+            params
+          ) => (
 
             <TextField
               {...params}
 
               size="small"
 
-              placeholder=
+              placeholder={
                 "Search BMD name or code..."
+              }
 
               error={
                 Boolean(
@@ -637,120 +572,40 @@ function SalesCustomerSelector({
               helperText={
                 error || ""
               }
+
+              sx={{
+                "& .MuiOutlinedInput-root":
+                  {
+                    minHeight:
+                      42,
+
+                    borderRadius:
+                      2,
+                  },
+
+                "& .MuiInputBase-input":
+                  {
+                    fontSize:
+                      12.5,
+
+                    py:
+                      0.9,
+                  },
+
+                "& .MuiFormHelperText-root":
+                  {
+                    mt:
+                      0.4,
+
+                    fontSize:
+                      9,
+                  },
+              }}
             />
 
           )
         }
       />
-
-
-      {/* =================================================
-          SELECTED CUSTOMER INFORMATION
-          ================================================= */}
-
-      {selectedCustomer && (
-
-        <Box
-          sx={{
-            mt:
-              1.5,
-
-            px:
-              1.5,
-
-            py:
-              1.25,
-
-            borderRadius:
-              1.5,
-
-            backgroundColor:
-              "#f5f8fb",
-
-            border:
-              "1px solid #e3eaf1",
-          }}
-        >
-
-          {/* CUSTOMER NAME */}
-
-          <Typography
-            variant="body1"
-            sx={{
-              fontWeight:
-                700,
-
-              color:
-                "#0f3557",
-            }}
-          >
-
-            {selectedCustomer.bmd_name}
-
-          </Typography>
-
-
-          {/* BMD CODE */}
-
-          <Typography
-            variant="body2"
-            sx={{
-              color:
-                "#667788",
-
-              mt:
-                0.25,
-            }}
-          >
-
-            BMD Code:{" "}
-            {selectedCustomer.bmd_code}
-
-          </Typography>
-
-
-          {/* REGION */}
-
-          {selectedCustomer.region_code && (
-
-            <Typography
-              variant="body2"
-              sx={{
-                color:
-                  "#667788",
-              }}
-            >
-
-              Region:{" "}
-              {selectedCustomer.region_code}
-
-            </Typography>
-
-          )}
-
-
-          {/* REGION ZONE */}
-
-          {selectedCustomer.region_zone_code && (
-
-            <Typography
-              variant="body2"
-              sx={{
-                color:
-                  "#667788",
-              }}
-            >
-
-              Zone:{" "}
-              {selectedCustomer.region_zone_code}
-
-            </Typography>
-
-          )}
-
-        </Box>
-
-      )}
 
     </Box>
   );

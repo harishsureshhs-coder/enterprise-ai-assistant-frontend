@@ -479,13 +479,6 @@ function parseSseEventBlock(
 
 // =========================================================
 // PROCESS SSE EVENT
-//
-// Returns:
-// - actual result object when event is result
-// - null for progress / ignored events
-//
-// Throws:
-// - Error when backend sends type=error
 // =========================================================
 
 function processSseEvent(
@@ -535,11 +528,39 @@ function processSseEvent(
 
 
   // -------------------------------------------------------
-  // BACKEND ERROR
+  // PROGRESSIVE RESPONSE EVENTS
   //
-  // Important:
-  // SSE HTTP status may still be 200 because the stream
-  // already started before backend processing failed.
+  // token             → Summary / Key Insights
+  // section_complete  → Narrative section boundary
+  // visual            → Chart
+  // data              → Result Table
+  // -------------------------------------------------------
+
+  if (
+    [
+      "token",
+      "section_complete",
+      "visual",
+      "data",
+    ].includes(
+      eventType
+    )
+  ) {
+    if (
+      typeof onProgress ===
+      "function"
+    ) {
+      onProgress(
+        event
+      );
+    }
+
+    return null;
+  }
+
+
+  // -------------------------------------------------------
+  // BACKEND ERROR
   // -------------------------------------------------------
 
   if (
@@ -559,25 +580,6 @@ function processSseEvent(
 
   // -------------------------------------------------------
   // FINAL RESULT
-  //
-  // Current backend format:
-  //
-  // {
-  //   "type": "result",
-  //   "data": {
-  //      "engine": "SQL",
-  //      "answer": "...",
-  //      ...
-  //   }
-  // }
-  //
-  // App.jsx expects:
-  //
-  // response.engine
-  // response.answer
-  // response.rows
-  //
-  // Therefore we MUST return event.data.
   // -------------------------------------------------------
 
   if (
@@ -594,9 +596,6 @@ function processSseEvent(
 
   // -------------------------------------------------------
   // BACKWARD COMPATIBILITY
-  //
-  // Supports older backend versions that may return
-  // the result directly rather than wrapping it.
   // -------------------------------------------------------
 
   if (
@@ -805,12 +804,6 @@ export async function sendMessageStream(
 
       // ---------------------------------------------------
       // Normalize Windows / HTTP CRLF into LF.
-      //
-      // Backend currently writes:
-      //
-      // data: {...}\n\n
-      //
-      // But proxies may expose CRLF.
       // ---------------------------------------------------
 
       buffer =
