@@ -1,10 +1,18 @@
 const AGENT_ID =
 
+
+
   "EXECUTIVE";
 
 
 
+
+
+
+
 const NEW_CHAT_MARKER =
+
+
 
   "__NEW_CHAT__";
 
@@ -12,13 +20,31 @@ const NEW_CHAT_MARKER =
 
 
 
+
+
+
+
+
+
 import {
+
+
 
   useEffect,
 
+
+
   useState,
 
+
+
 } from "react";
+
+
+
+
+
+
 
 
 
@@ -30,7 +56,19 @@ import "./App.css";
 
 
 
+
+
+
+
+
+
 import Layout from "./components/layout/Layout";
+
+
+
+
+
+
 
 
 
@@ -38,7 +76,11 @@ import Layout from "./components/layout/Layout";
 
 import {
 
+
+
   getCurrentUser,
+
+
 
 } from "./services/authService";
 
@@ -46,9 +88,19 @@ import {
 
 
 
+
+
+
+
+
+
 import ChatWindow from "./components/chat/ChatWindow";
 
+
+
 import ChatInput from "./components/ChatInput";
+
+
 
 import SuggestedQuestions from "./components/SuggestedQuestions";
 
@@ -56,9 +108,19 @@ import SuggestedQuestions from "./components/SuggestedQuestions";
 
 
 
+
+
+
+
+
+
 import {
 
+
+
   sendMessageStream,
+
+
 
 } from "./services/api";
 
@@ -66,13 +128,27 @@ import {
 
 
 
+
+
+
+
+
+
 import {
+
+
 
   createConversation,
 
+
+
   getConversations,
 
+
+
   getConversationMessages,
+
+
 
 } from "./services/conversationApi";
 
@@ -80,73 +156,147 @@ import {
 
 
 
+
+
+
+
+
+
 // =========================================================
+
+
 
 // INITIAL MESSAGE
 
+
+
 // =========================================================
+
+
+
+
 
 
 
 const initialMessage = {
 
+
+
   id:
+
+
 
     "welcome",
 
 
 
+
+
+
+
   role:
+
+
 
     "ai",
 
 
 
+
+
+
+
   engine:
+
+
 
     "CHAT",
 
 
 
+
+
+
+
   text:
+
+
 
     "Hi! I'm your MA AI Assistant. How can I help you today?",
 
 
 
+
+
+
+
   source:
+
+
 
     "GPT",
 
 
 
+
+
+
+
   status:
+
+
 
     "success",
 
 
 
+
+
+
+
   visitIntelligence:
+
+
 
     null,
 
 
 
+
+
+
+
   rows:
 
+
+
     [],
+
+
+
+
 
 
 
   keyInsights:
 
+
+
     [],
+
+
+
+
 
 
 
   suggestions:
 
+
+
     [],
+
+
 
 };
 
@@ -154,25 +304,51 @@ const initialMessage = {
 
 
 
+
+
+
+
+
+
 // =========================================================
+
+
 
 // SUGGESTED QUESTIONS
 
+
+
 // =========================================================
+
+
+
+
 
 
 
 const suggestedQuestions = [
 
+
+
   "Explain Azure Data Factory",
+
+
 
   "Show total TGS",
 
+
+
   "Show TGS by Distribution Channel",
+
+
 
   "Show top 3 CBF by TGS",
 
+
+
   "Show monthly TGS trend",
+
+
 
 ];
 
@@ -180,59 +356,123 @@ const suggestedQuestions = [
 
 
 
+
+
+
+
+
+
 // =========================================================
+
+
 
 // ACTIVE CONVERSATION STORAGE
 
+
+
 //
+
+
 
 // sessionStorage survives browser refresh,
 
+
+
 // but does not permanently retain state forever.
 
+
+
 //
+
+
 
 // This gives us:
 
+
+
 //
+
+
 
 // open conversation
 
+
+
 //       ↓
+
+
 
 // refresh
 
+
+
 //       ↓
+
+
 
 // reopen same conversation
 
+
+
 //
+
+
 
 // New Chat deliberately stores a special marker.
 
+
+
 // =========================================================
+
+
+
+
 
 
 
 function getConversationStorageKey(
 
+
+
   userId
+
+
 
 ) {
 
+
+
   return (
+
+
 
     `enterprise-ai:`
 
+
+
     + `${AGENT_ID}:`
+
+
 
     + `${userId}:`
 
+
+
     + "activeConversation"
+
+
 
   );
 
+
+
 }
+
+
+
+
+
+
 
 
 
@@ -240,23 +480,47 @@ function getConversationStorageKey(
 
 function rememberActiveConversation(
 
+
+
   userId,
+
+
 
   conversationId
 
+
+
 ) {
+
+
 
   if (
 
+
+
     !userId ||
+
+
 
     !conversationId
 
+
+
   ) {
+
+
 
     return;
 
+
+
   }
+
+
+
+
+
+
 
 
 
@@ -266,17 +530,35 @@ function rememberActiveConversation(
 
 
 
+
+
+
+
     sessionStorage.setItem(
+
+
 
       getConversationStorageKey(
 
+
+
         userId
+
+
 
       ),
 
+
+
       conversationId
 
+
+
     );
+
+
+
+
 
 
 
@@ -284,17 +566,37 @@ function rememberActiveConversation(
 
 
 
+
+
+
+
     console.warn(
+
+
 
       "Unable to persist active conversation:",
 
+
+
       error
+
+
 
     );
 
+
+
   }
 
+
+
 }
+
+
+
+
+
+
 
 
 
@@ -302,15 +604,31 @@ function rememberActiveConversation(
 
 function rememberNewChat(
 
+
+
   userId
+
+
 
 ) {
 
+
+
   if (!userId) {
+
+
 
     return;
 
+
+
   }
+
+
+
+
+
+
 
 
 
@@ -320,17 +638,35 @@ function rememberNewChat(
 
 
 
+
+
+
+
     sessionStorage.setItem(
+
+
 
       getConversationStorageKey(
 
+
+
         userId
+
+
 
       ),
 
+
+
       NEW_CHAT_MARKER
 
+
+
     );
+
+
+
+
 
 
 
@@ -338,15 +674,29 @@ function rememberNewChat(
 
 
 
+
+
+
+
     console.warn(
+
+
 
       "Unable to persist New Chat state:",
 
+
+
       error
+
+
 
     );
 
+
+
   }
+
+
 
 }
 
@@ -354,17 +704,39 @@ function rememberNewChat(
 
 
 
+
+
+
+
+
+
 function getRememberedConversation(
+
+
 
   userId
 
+
+
 ) {
+
+
 
   if (!userId) {
 
+
+
     return null;
 
+
+
   }
+
+
+
+
+
+
 
 
 
@@ -374,15 +746,31 @@ function getRememberedConversation(
 
 
 
+
+
+
+
     return sessionStorage.getItem(
+
+
 
       getConversationStorageKey(
 
+
+
         userId
+
+
 
       )
 
+
+
     );
+
+
+
+
 
 
 
@@ -390,9 +778,17 @@ function getRememberedConversation(
 
 
 
+
+
+
+
     return null;
 
+
+
   }
+
+
 
 }
 
@@ -400,21 +796,43 @@ function getRememberedConversation(
 
 
 
+
+
+
+
+
+
 // =========================================================
+
+
 
 // CONVERSATION TITLE
 
+
+
 // =========================================================
+
+
+
+
 
 
 
 function createConversationTitle(
 
+
+
   question
+
+
 
 ) {
 
+
+
   const maximumLength =
+
+
 
     32;
 
@@ -422,17 +840,39 @@ function createConversationTitle(
 
 
 
+
+
+
+
+
+
   if (
+
+
 
     question.length <=
 
+
+
     maximumLength
+
+
 
   ) {
 
+
+
     return question;
 
+
+
   }
+
+
+
+
+
+
 
 
 
@@ -440,15 +880,27 @@ function createConversationTitle(
 
   return (
 
+
+
     `${question.slice(
+
+
 
       0,
 
+
+
       maximumLength
+
+
 
     )}...`
 
+
+
   );
+
+
 
 }
 
@@ -456,31 +908,63 @@ function createConversationTitle(
 
 
 
+
+
+
+
+
+
 // =========================================================
+
+
 
 // ARRAY NORMALIZER
 
+
+
 // =========================================================
+
+
+
+
 
 
 
 function normalizeArrayValue(
 
+
+
   value
+
+
 
 ) {
 
+
+
   if (
+
+
 
     Array.isArray(
 
+
+
       value
+
+
 
     )
 
+
+
   ) {
 
+
+
     return value;
+
+
 
   }
 
@@ -488,13 +972,29 @@ function normalizeArrayValue(
 
 
 
+
+
+
+
+
+
   if (
+
+
 
     typeof value ===
 
+
+
     "string"
 
+
+
   ) {
+
+
+
+
 
 
 
@@ -502,13 +1002,29 @@ function normalizeArrayValue(
 
 
 
+
+
+
+
       const parsedValue =
+
+
 
         JSON.parse(
 
+
+
           value
 
+
+
         );
+
+
+
+
+
+
 
 
 
@@ -516,11 +1032,19 @@ function normalizeArrayValue(
 
       return Array.isArray(
 
+
+
         parsedValue
+
+
 
       )
 
+
+
         ? parsedValue
+
+
 
         : [];
 
@@ -528,15 +1052,35 @@ function normalizeArrayValue(
 
 
 
+
+
+
+
+
+
     } catch {
+
+
+
+
 
 
 
       return [];
 
+
+
     }
 
+
+
   }
+
+
+
+
+
+
 
 
 
@@ -544,43 +1088,83 @@ function normalizeArrayValue(
 
   return [];
 
+
+
 }
 
 
 
 
 
+
+
+
+
+
+
 // =========================================================
+
+
 
 // OBJECT NORMALIZER
 
+
+
 // =========================================================
+
+
+
+
 
 
 
 function normalizeObjectValue(
 
+
+
   value
+
+
 
 ) {
 
+
+
   if (
+
+
 
     value &&
 
+
+
     typeof value ===
+
+
 
       "object" &&
 
+
+
     !Array.isArray(
+
+
 
       value
 
+
+
     )
+
+
 
   ) {
 
+
+
     return value;
+
+
 
   }
 
@@ -588,13 +1172,29 @@ function normalizeObjectValue(
 
 
 
+
+
+
+
+
+
   if (
+
+
 
     typeof value ===
 
+
+
     "string"
 
+
+
   ) {
+
+
+
+
 
 
 
@@ -602,11 +1202,21 @@ function normalizeObjectValue(
 
 
 
+
+
+
+
       const parsedValue =
+
+
 
         JSON.parse(
 
+
+
           value
+
+
 
         );
 
@@ -614,25 +1224,55 @@ function normalizeObjectValue(
 
 
 
+
+
+
+
+
+
       return (
+
+
 
         parsedValue &&
 
+
+
         typeof parsedValue ===
+
+
 
           "object" &&
 
+
+
         !Array.isArray(
+
+
 
           parsedValue
 
+
+
         )
+
+
 
       )
 
+
+
         ? parsedValue
 
+
+
         : null;
+
+
+
+
+
+
 
 
 
@@ -642,9 +1282,17 @@ function normalizeObjectValue(
 
 
 
+
+
+
+
       return null;
 
+
+
     }
+
+
 
   }
 
@@ -652,7 +1300,15 @@ function normalizeObjectValue(
 
 
 
+
+
+
+
+
+
   return null;
+
+
 
 }
 
@@ -660,27 +1316,59 @@ function normalizeObjectValue(
 
 
 
+
+
+
+
+
+
 // =========================================================
+
+
 
 // RESPONSE PAYLOAD
 
+
+
 // =========================================================
+
+
+
+
 
 
 
 function normalizeResponsePayload(
 
+
+
   message
+
+
 
 ) {
 
+
+
   const rawPayload =
+
+
 
     message.ResponsePayload ??
 
+
+
     message.response_payload ??
 
+
+
     null;
+
+
+
+
+
+
 
 
 
@@ -688,9 +1376,15 @@ function normalizeResponsePayload(
 
   return normalizeObjectValue(
 
+
+
     rawPayload
 
+
+
   );
+
+
 
 }
 
@@ -698,33 +1392,71 @@ function normalizeResponsePayload(
 
 
 
+
+
+
+
+
+
 // =========================================================
+
+
 
 // ENGINE NORMALIZER
 
+
+
 // =========================================================
+
+
+
+
 
 
 
 function normalizeEngine(
 
+
+
   message,
+
+
 
   responsePayload,
 
+
+
   role
+
+
 
 ) {
 
+
+
   const explicitEngine =
+
+
 
     responsePayload?.engine ??
 
+
+
     message.Engine ??
+
+
 
     message.engine ??
 
+
+
     null;
+
+
+
+
+
+
 
 
 
@@ -734,13 +1466,29 @@ function normalizeEngine(
 
 
 
+
+
+
+
     return String(
+
+
 
       explicitEngine
 
+
+
     ).toUpperCase();
 
+
+
   }
+
+
+
+
+
+
 
 
 
@@ -748,9 +1496,15 @@ function normalizeEngine(
 
   const queryType =
 
+
+
     message.QueryType ??
 
+
+
     message.query_type ??
+
+
 
     null;
 
@@ -758,21 +1512,47 @@ function normalizeEngine(
 
 
 
+
+
+
+
+
+
   if (
+
+
 
     String(
 
+
+
       queryType || ""
+
+
 
     ).toUpperCase() ===
 
+
+
     "CHAT"
 
+
+
   ) {
+
+
 
     return "CHAT";
 
+
+
   }
+
+
+
+
+
+
 
 
 
@@ -780,23 +1560,47 @@ function normalizeEngine(
 
   if (
 
+
+
     role ===
+
+
 
       "ASSISTANT" &&
 
+
+
     (
+
+
 
       message.GeneratedQuery ||
 
+
+
       message.generated_query
+
+
 
     )
 
+
+
   ) {
+
+
 
     return "SQL";
 
+
+
   }
+
+
+
+
+
+
 
 
 
@@ -804,15 +1608,31 @@ function normalizeEngine(
 
   if (
 
+
+
     role ===
+
+
 
     "USER"
 
+
+
   ) {
+
+
 
     return null;
 
+
+
   }
+
+
+
+
+
+
 
 
 
@@ -820,33 +1640,63 @@ function normalizeEngine(
 
   return "CHAT";
 
+
+
 }
 
 
 
 
 
+
+
+
+
+
+
 // =========================================================
+
+
 
 // NORMALIZE HISTORY MESSAGE
 
+
+
 // =========================================================
+
+
+
+
 
 
 
 function normalizeHistoryMessage(
 
+
+
   message
+
+
 
 ) {
 
+
+
   const role = String(
+
+
 
     message.MessageRole ??
 
+
+
     message.message_role ??
 
+
+
     ""
+
+
 
   ).toUpperCase();
 
@@ -854,11 +1704,23 @@ function normalizeHistoryMessage(
 
 
 
+
+
+
+
+
+
   const executionStatus =
+
+
 
     message.ExecutionStatus ??
 
+
+
     message.execution_status ??
+
+
 
     null;
 
@@ -866,13 +1728,31 @@ function normalizeHistoryMessage(
 
 
 
+
+
+
+
+
+
   const responsePayload =
+
+
 
     normalizeResponsePayload(
 
+
+
       message
 
+
+
     );
+
+
+
+
+
+
 
 
 
@@ -880,11 +1760,23 @@ function normalizeHistoryMessage(
 
   const payloadRows =
 
+
+
     normalizeArrayValue(
+
+
 
       responsePayload?.rows
 
+
+
     );
+
+
+
+
+
+
 
 
 
@@ -892,13 +1784,27 @@ function normalizeHistoryMessage(
 
   const directRows =
 
+
+
     normalizeArrayValue(
+
+
 
       message.Rows ??
 
+
+
       message.rows
 
+
+
     );
+
+
+
+
+
+
 
 
 
@@ -906,9 +1812,15 @@ function normalizeHistoryMessage(
 
   const rows =
 
+
+
     payloadRows.length > 0
 
+
+
       ? payloadRows
+
+
 
       : directRows;
 
@@ -916,17 +1828,39 @@ function normalizeHistoryMessage(
 
 
 
+
+
+
+
+
+
   const engine =
+
+
 
     normalizeEngine(
 
+
+
       message,
+
+
 
       responsePayload,
 
+
+
       role
 
+
+
     );
+
+
+
+
+
+
 
 
 
@@ -934,17 +1868,31 @@ function normalizeHistoryMessage(
 
   const answer =
 
+
+
     responsePayload?.answer ??
+
+
 
     responsePayload?.summary ??
 
+
+
     responsePayload
+
+
 
       ?.executive_summary ??
 
+
+
     message.MessageText ??
 
+
+
     message.message_text ??
+
+
 
     "";
 
@@ -952,61 +1900,127 @@ function normalizeHistoryMessage(
 
 
 
+
+
+
+
+
+
   // =======================================================
+
+
 
   // STATUS
 
+
+
   //
+
+
 
   // Important:
 
+
+
   //
+
+
 
   // ExecutionStatus can now intentionally be NULL
 
+
+
   // for an Azure OpenAI/runtime failure.
 
+
+
   //
+
+
 
   // The ResponsePayload still contains:
 
+
+
   //
+
+
 
   // status = error
 
+
+
   // message = actual error
 
+
+
   // =======================================================
+
+
+
+
 
 
 
   const normalizedStatus =
 
+
+
     responsePayload?.status ??
+
+
 
     (
 
+
+
       executionStatus
+
+
 
         ? String(
 
+
+
             executionStatus
+
+
 
           ).toLowerCase()
 
+
+
         : (
+
+
 
             role ===
 
+
+
               "ASSISTANT"
+
+
 
               ? "success"
 
+
+
               : null
+
+
 
           )
 
+
+
     );
+
+
+
+
+
+
 
 
 
@@ -1016,11 +2030,21 @@ function normalizeHistoryMessage(
 
 
 
+
+
+
+
     id:
+
+
 
       message.MessageId ??
 
+
+
       message.message_id ??
+
+
 
       crypto.randomUUID(),
 
@@ -1028,15 +2052,35 @@ function normalizeHistoryMessage(
 
 
 
+
+
+
+
+
+
     role:
+
+
 
       role ===
 
+
+
         "USER"
+
+
 
         ? "user"
 
+
+
         : "ai",
+
+
+
+
+
+
 
 
 
@@ -1048,9 +2092,23 @@ function normalizeHistoryMessage(
 
 
 
+
+
+
+
+
+
     text:
 
+
+
       answer,
+
+
+
+
+
+
 
 
 
@@ -1062,7 +2120,15 @@ function normalizeHistoryMessage(
 
 
 
+
+
+
+
+
+
     content:
+
+
 
       answer,
 
@@ -1070,26 +2136,57 @@ function normalizeHistoryMessage(
 
 
 
+
+
+
+
+
+
     // =======================================================
+
     // VISIT INTELLIGENCE
+
     //
+
     // Preserve the dedicated Visit Intelligence payload when
+
     // an existing Executive Agent conversation is reopened.
+
     // =======================================================
+
+
 
     visitIntelligence:
 
+
+
       normalizeObjectValue(
 
-        responsePayload
-          ?.visit_intelligence ??
+
 
         responsePayload
+
+          ?.visit_intelligence ??
+
+
+
+        responsePayload
+
           ?.visitIntelligence ??
+
+
 
         null
 
+
+
       ),
+
+
+
+
+
+
 
 
 
@@ -1097,13 +2194,23 @@ function normalizeHistoryMessage(
 
     executiveSummary:
 
+
+
       responsePayload
+
+
 
         ?.executive_summary ??
 
+
+
       message.ExecutiveSummary ??
 
+
+
       message.executive_summary ??
+
+
 
       null,
 
@@ -1111,19 +2218,43 @@ function normalizeHistoryMessage(
 
 
 
+
+
+
+
+
+
     keyInsights:
+
+
 
       normalizeArrayValue(
 
+
+
         responsePayload
+
+
 
           ?.key_insights ??
 
+
+
         message.KeyInsights ??
+
+
 
         message.key_insights
 
+
+
       ),
+
+
+
+
+
+
 
 
 
@@ -1131,17 +2262,35 @@ function normalizeHistoryMessage(
 
     visual:
 
+
+
       normalizeObjectValue(
+
+
 
         responsePayload
 
+
+
           ?.visual ??
+
+
 
         message.Visual ??
 
+
+
         message.visual
 
+
+
       ),
+
+
+
+
+
+
 
 
 
@@ -1149,21 +2298,43 @@ function normalizeHistoryMessage(
 
     suggestions:
 
+
+
       normalizeArrayValue(
 
+
+
         responsePayload
+
+
 
           ?.suggestions ??
 
+
+
         responsePayload
+
+
 
           ?.suggested_questions ??
 
+
+
         message.Suggestions ??
+
+
 
         message.suggestions
 
+
+
       ),
+
+
+
+
+
+
 
 
 
@@ -1175,21 +2346,47 @@ function normalizeHistoryMessage(
 
 
 
+
+
+
+
+
+
     generatedQuery:
 
+
+
       responsePayload
+
+
 
         ?.generated_sql ??
 
+
+
       responsePayload
+
+
 
         ?.executed_sql ??
 
+
+
       message.GeneratedQuery ??
+
+
 
       message.generated_query ??
 
+
+
       null,
+
+
+
+
+
+
 
 
 
@@ -1197,11 +2394,23 @@ function normalizeHistoryMessage(
 
     executedQuery:
 
+
+
       responsePayload
+
+
 
         ?.executed_sql ??
 
+
+
       null,
+
+
+
+
+
+
 
 
 
@@ -1209,13 +2418,27 @@ function normalizeHistoryMessage(
 
     queryType:
 
+
+
       message.QueryType ??
+
+
 
       message.query_type ??
 
+
+
       engine ??
 
+
+
       null,
+
+
+
+
+
+
 
 
 
@@ -1223,23 +2446,43 @@ function normalizeHistoryMessage(
 
     source:
 
+
+
       responsePayload
+
+
 
         ?.source ??
 
+
+
       message.DataSource ??
+
+
 
       message.data_source ??
 
+
+
       (
+
+
 
         engine ===
 
+
+
           "CHAT"
+
+
 
           ? "GPT"
 
+
+
           : "Azure SQL"
+
+
 
       ),
 
@@ -1247,7 +2490,15 @@ function normalizeHistoryMessage(
 
 
 
+
+
+
+
+
+
     status:
+
+
 
       normalizedStatus,
 
@@ -1255,17 +2506,39 @@ function normalizeHistoryMessage(
 
 
 
+
+
+
+
+
+
     executionTime:
+
+
 
       responsePayload
 
+
+
         ?.execution_time_ms ??
+
+
 
       message.ExecutionTimeMs ??
 
+
+
       message.execution_time_ms ??
 
+
+
       null,
+
+
+
+
+
+
 
 
 
@@ -1273,11 +2546,23 @@ function normalizeHistoryMessage(
 
     timings:
 
+
+
       responsePayload
+
+
 
         ?.timings ??
 
+
+
       null,
+
+
+
+
+
+
 
 
 
@@ -1285,15 +2570,31 @@ function normalizeHistoryMessage(
 
     errorMessage:
 
+
+
       responsePayload
+
+
 
         ?.message ??
 
+
+
       message.ErrorMessage ??
+
+
 
       message.error_message ??
 
+
+
       null,
+
+
+
+
+
+
 
 
 
@@ -1301,13 +2602,23 @@ function normalizeHistoryMessage(
 
     rowCount:
 
+
+
       responsePayload
+
+
 
         ?.row_count ??
 
+
+
       message.RowCount ??
 
+
+
       message.row_count ??
+
+
 
       rows.length,
 
@@ -1315,15 +2626,31 @@ function normalizeHistoryMessage(
 
 
 
+
+
+
+
+
+
     requestPlan:
+
+
 
       responsePayload
 
+
+
         ?.request_plan ??
+
+
 
       null,
 
+
+
   };
+
+
 
 }
 
@@ -1331,11 +2658,25 @@ function normalizeHistoryMessage(
 
 
 
+
+
+
+
+
+
 // =========================================================
+
+
 
 // APP
 
+
+
 // =========================================================
+
+
+
+
 
 
 
@@ -1343,25 +2684,49 @@ function App() {
 
 
 
+
+
+
+
   // =======================================================
+
+
 
   // AUTHENTICATED USER
 
+
+
   // =======================================================
 
 
 
+
+
+
+
   const [
+
+
 
     currentUser,
 
+
+
     setCurrentUser,
+
+
 
   ] =
 
+
+
     useState(
 
+
+
       null
+
+
 
     );
 
@@ -1369,35 +2734,71 @@ function App() {
 
 
 
+
+
+
+
+
+
   const [
+
+
 
     userLoading,
 
+
+
     setUserLoading,
+
+
 
   ] =
 
+
+
     useState(
+
+
 
       true
 
+
+
     );
 
 
 
 
 
+
+
+
+
+
+
   const [
+
+
 
     userError,
 
+
+
     setUserError,
+
+
 
   ] =
 
+
+
     useState(
 
+
+
       null
+
+
 
     );
 
@@ -1405,25 +2806,51 @@ function App() {
 
 
 
+
+
+
+
+
+
   // =======================================================
+
+
 
   // CHAT STATE
 
+
+
   // =======================================================
+
+
+
+
 
 
 
   const [
 
+
+
     messages,
+
+
 
     setMessages,
 
+
+
   ] =
+
+
 
     useState([
 
+
+
       initialMessage,
+
+
 
     ]);
 
@@ -1431,37 +2858,79 @@ function App() {
 
 
 
+
+
+
+
+
+
   const [
+
+
 
     isLoading,
 
+
+
     setIsLoading,
+
+
 
   ] =
 
+
+
     useState(
+
+
 
       false
 
+
+
     );
 
 
 
 
 
+
+
+
+
+
+
   const [
+
+
 
     conversations,
 
+
+
     setConversations,
+
+
 
   ] =
 
+
+
     useState(
+
+
 
       []
 
+
+
     );
+
+
+
+
+
+
 
 
 
@@ -1469,15 +2938,27 @@ function App() {
 
   const [
 
+
+
     activeConversationId,
+
+
 
     setActiveConversationId,
 
+
+
   ] =
+
+
 
     useState(
 
+
+
       null
+
+
 
     );
 
@@ -1485,17 +2966,37 @@ function App() {
 
 
 
+
+
+
+
+
+
   // =======================================================
+
+
 
   // LOAD ENTRA USER
 
+
+
   // =======================================================
+
+
+
+
 
 
 
   useEffect(
 
+
+
     () => {
+
+
+
+
 
 
 
@@ -1503,15 +3004,33 @@ function App() {
 
 
 
+
+
+
+
         try {
+
+
+
+
 
 
 
           setUserLoading(
 
+
+
             true
 
+
+
           );
+
+
+
+
+
+
 
 
 
@@ -1519,9 +3038,19 @@ function App() {
 
           setUserError(
 
+
+
             null
 
+
+
           );
+
+
+
+
+
+
 
 
 
@@ -1529,7 +3058,15 @@ function App() {
 
           const authenticatedUser =
 
+
+
             await getCurrentUser();
+
+
+
+
+
+
 
 
 
@@ -1537,17 +3074,31 @@ function App() {
 
           if (
 
+
+
             !authenticatedUser?.id
+
+
 
           ) {
 
 
 
+
+
+
+
             throw new Error(
+
+
 
               "Authenticated Entra user could not be loaded."
 
+
+
             );
+
+
 
           }
 
@@ -1555,13 +3106,31 @@ function App() {
 
 
 
+
+
+
+
+
+
           console.log(
+
+
 
             "Authenticated Executive user:",
 
+
+
             authenticatedUser
 
+
+
           );
+
+
+
+
+
+
 
 
 
@@ -1569,9 +3138,19 @@ function App() {
 
           setCurrentUser(
 
+
+
             authenticatedUser
 
+
+
           );
+
+
+
+
+
+
 
 
 
@@ -1581,13 +3160,29 @@ function App() {
 
 
 
+
+
+
+
           console.error(
+
+
 
             "Unable to load authenticated user:",
 
+
+
             error
 
+
+
           );
+
+
+
+
+
+
 
 
 
@@ -1595,13 +3190,27 @@ function App() {
 
           setUserError(
 
+
+
             error instanceof Error
+
+
 
               ? error.message
 
+
+
               : "Unable to load authenticated user."
 
+
+
           );
+
+
+
+
+
+
 
 
 
@@ -1611,15 +3220,33 @@ function App() {
 
 
 
+
+
+
+
           setUserLoading(
+
+
 
             false
 
+
+
           );
+
+
 
         }
 
+
+
       }
+
+
+
+
+
+
 
 
 
@@ -1629,9 +3256,17 @@ function App() {
 
 
 
+
+
+
+
     },
 
+
+
     []
+
+
 
   );
 
@@ -1639,59 +3274,123 @@ function App() {
 
 
 
+
+
+
+
+
+
   // =======================================================
+
+
 
   // INITIALIZE CONVERSATION HISTORY
 
+
+
   //
+
+
 
   // This is the important refresh fix.
 
+
+
   //
+
+
 
   // Previous code:
 
+
+
   //
 
+
+
   // GET /conversations
+
+
 
   // → sidebar only
 
+
+
   //
+
+
 
   // New code:
 
+
+
   //
+
+
 
   // GET /conversations
 
+
+
   // → find previously active conversation
+
+
 
   // → GET /conversations/{id}/messages
 
+
+
   // → restore messages
 
+
+
   // =======================================================
+
+
+
+
 
 
 
   useEffect(
 
+
+
     () => {
+
+
+
+
 
 
 
       if (
 
+
+
         !currentUser?.id
+
+
 
       ) {
 
 
 
+
+
+
+
         return;
 
+
+
       }
+
+
+
+
+
+
 
 
 
@@ -1701,13 +3400,25 @@ function App() {
 
 
 
+
+
+
+
     },
+
+
 
     [
 
+
+
       currentUser?.id,
 
+
+
     ]
+
+
 
   );
 
@@ -1715,11 +3426,25 @@ function App() {
 
 
 
+
+
+
+
+
+
   // =======================================================
+
+
 
   // INITIAL HISTORY LOAD + RESTORE
 
+
+
   // =======================================================
+
+
+
+
 
 
 
@@ -1727,15 +3452,29 @@ function App() {
 
 
 
+
+
+
+
     if (
 
+
+
       !currentUser?.id
+
+
 
     ) {
 
 
 
+
+
+
+
       return;
+
+
 
     }
 
@@ -1743,11 +3482,27 @@ function App() {
 
 
 
+
+
+
+
+
+
     setIsLoading(
+
+
 
       true
 
+
+
     );
+
+
+
+
+
+
 
 
 
@@ -1757,11 +3512,21 @@ function App() {
 
 
 
+
+
+
+
       console.log(
+
+
 
         "Initializing Executive conversations:",
 
+
+
         currentUser.id
+
+
 
       );
 
@@ -1769,23 +3534,51 @@ function App() {
 
 
 
+
+
+
+
+
+
       // ===================================================
+
+
 
       // LOAD SIDEBAR
 
+
+
       // ===================================================
+
+
+
+
 
 
 
       const history =
 
+
+
         await getConversations(
+
+
 
           currentUser.id,
 
+
+
           AGENT_ID
 
+
+
         );
+
+
+
+
+
+
 
 
 
@@ -1793,13 +3586,23 @@ function App() {
 
       const conversationList =
 
+
+
         Array.isArray(
+
+
 
           history
 
+
+
         )
 
+
+
           ? history
+
+
 
           : [];
 
@@ -1807,11 +3610,27 @@ function App() {
 
 
 
+
+
+
+
+
+
       setConversations(
+
+
 
         conversationList
 
+
+
       );
+
+
+
+
+
+
 
 
 
@@ -1819,9 +3638,15 @@ function App() {
 
       console.log(
 
+
+
         "Executive conversations loaded:",
 
+
+
         conversationList.length
+
+
 
       );
 
@@ -1829,21 +3654,47 @@ function App() {
 
 
 
+
+
+
+
+
+
       // ===================================================
+
+
 
       // READ LAST ACTIVE CONVERSATION
 
+
+
       // ===================================================
+
+
+
+
 
 
 
       const rememberedConversationId =
 
+
+
         getRememberedConversation(
+
+
 
           currentUser.id
 
+
+
         );
+
+
+
+
+
+
 
 
 
@@ -1851,9 +3702,15 @@ function App() {
 
       console.log(
 
+
+
         "Remembered Executive conversation:",
 
+
+
         rememberedConversationId
+
+
 
       );
 
@@ -1861,33 +3718,71 @@ function App() {
 
 
 
+
+
+
+
+
+
       // ===================================================
+
+
 
       // USER EXPLICITLY SELECTED NEW CHAT
 
+
+
       //
+
+
 
       // Do not automatically reopen old conversation.
 
+
+
       // ===================================================
+
+
+
+
 
 
 
       if (
 
+
+
         rememberedConversationId ===
 
+
+
         NEW_CHAT_MARKER
+
+
 
       ) {
 
 
 
+
+
+
+
         setActiveConversationId(
+
+
 
           null
 
+
+
         );
+
+
+
+
+
+
 
 
 
@@ -1895,7 +3790,11 @@ function App() {
 
         setMessages([
 
+
+
           initialMessage,
+
+
 
         ]);
 
@@ -1903,7 +3802,15 @@ function App() {
 
 
 
+
+
+
+
+
+
         return;
+
+
 
       }
 
@@ -1911,21 +3818,43 @@ function App() {
 
 
 
+
+
+
+
+
+
       // ===================================================
+
+
 
       // DETERMINE CONVERSATION TO RESTORE
 
+
+
       //
+
+
 
       // 1. Previously active conversation
 
+
+
       // 2. Most recent conversation as fallback
 
+
+
       // ===================================================
+
+
+
+
 
 
 
       let conversationToRestore =
+
+
 
         null;
 
@@ -1933,25 +3862,55 @@ function App() {
 
 
 
+
+
+
+
+
+
       if (
 
+
+
         rememberedConversationId
+
+
 
       ) {
 
 
 
+
+
+
+
         const exists =
+
+
 
           conversationList.some(
 
+
+
             (conversation) =>
+
+
 
               conversation.id ===
 
+
+
               rememberedConversationId
 
+
+
           );
+
+
+
+
+
+
 
 
 
@@ -1961,11 +3920,21 @@ function App() {
 
 
 
+
+
+
+
           conversationToRestore =
+
+
 
             rememberedConversationId;
 
+
+
         }
+
+
 
       }
 
@@ -1973,33 +3942,67 @@ function App() {
 
 
 
+
+
+
+
+
+
       // ---------------------------------------------------
+
+
 
       // No remembered ID yet.
 
+
+
       //
+
+
 
       // This handles the first refresh immediately after
 
+
+
       // deploying this change.
 
+
+
       // ---------------------------------------------------
+
+
+
+
 
 
 
       if (
 
+
+
         !conversationToRestore &&
+
+
 
         conversationList.length > 0
 
+
+
       ) {
+
+
+
+
 
 
 
         conversationToRestore =
 
+
+
           conversationList[0].id;
+
+
 
       }
 
@@ -2007,27 +4010,59 @@ function App() {
 
 
 
+
+
+
+
+
+
       // ===================================================
+
+
 
       // NO CONVERSATIONS
 
+
+
       // ===================================================
+
+
+
+
 
 
 
       if (
 
+
+
         !conversationToRestore
+
+
 
       ) {
 
 
 
+
+
+
+
         setActiveConversationId(
+
+
 
           null
 
+
+
         );
+
+
+
+
+
+
 
 
 
@@ -2035,7 +4070,11 @@ function App() {
 
         setMessages([
 
+
+
           initialMessage,
+
+
 
         ]);
 
@@ -2043,7 +4082,15 @@ function App() {
 
 
 
+
+
+
+
+
+
         return;
+
+
 
       }
 
@@ -2051,21 +4098,47 @@ function App() {
 
 
 
+
+
+
+
+
+
       // ===================================================
+
+
 
       // LOAD MESSAGES
 
+
+
       // ===================================================
+
+
+
+
 
 
 
       console.log(
 
+
+
         "Restoring Executive conversation:",
+
+
 
         conversationToRestore
 
+
+
       );
+
+
+
+
+
+
 
 
 
@@ -2073,11 +4146,23 @@ function App() {
 
       const messageHistory =
 
+
+
         await getConversationMessages(
+
+
 
           conversationToRestore
 
+
+
         );
+
+
+
+
+
+
 
 
 
@@ -2085,11 +4170,23 @@ function App() {
 
       console.log(
 
+
+
         "Restored Executive messages:",
+
+
 
         messageHistory
 
+
+
       );
+
+
+
+
+
+
 
 
 
@@ -2097,17 +4194,31 @@ function App() {
 
       const formattedMessages =
 
+
+
         Array.isArray(
+
+
 
           messageHistory
 
+
+
         )
+
+
 
           ? messageHistory.map(
 
+
+
               normalizeHistoryMessage
 
+
+
             )
+
+
 
           : [];
 
@@ -2115,11 +4226,27 @@ function App() {
 
 
 
+
+
+
+
+
+
       setActiveConversationId(
+
+
 
         conversationToRestore
 
+
+
       );
+
+
+
+
+
+
 
 
 
@@ -2127,9 +4254,15 @@ function App() {
 
       rememberActiveConversation(
 
+
+
         currentUser.id,
 
+
+
         conversationToRestore
+
+
 
       );
 
@@ -2137,19 +4270,43 @@ function App() {
 
 
 
+
+
+
+
+
+
       if (
 
+
+
         formattedMessages.length > 0
+
+
 
       ) {
 
 
 
+
+
+
+
         setMessages(
+
+
 
           formattedMessages
 
+
+
         );
+
+
+
+
+
+
 
 
 
@@ -2159,13 +4316,29 @@ function App() {
 
 
 
+
+
+
+
         setMessages([
+
+
 
           initialMessage,
 
+
+
         ]);
 
+
+
       }
+
+
+
+
+
+
 
 
 
@@ -2175,11 +4348,21 @@ function App() {
 
 
 
+
+
+
+
       console.error(
+
+
 
         "Unable to initialize Executive history:",
 
+
+
         error
+
+
 
       );
 
@@ -2187,11 +4370,27 @@ function App() {
 
 
 
+
+
+
+
+
+
       setMessages([
+
+
 
         initialMessage,
 
+
+
       ]);
+
+
+
+
+
+
 
 
 
@@ -2201,13 +4400,25 @@ function App() {
 
 
 
+
+
+
+
       setIsLoading(
+
+
 
         false
 
+
+
       );
 
+
+
     }
+
+
 
   }
 
@@ -2215,21 +4426,45 @@ function App() {
 
 
 
+
+
+
+
+
+
   // =======================================================
+
+
 
   // REFRESH SIDEBAR ONLY
 
+
+
   //
+
+
 
   // Important:
 
+
+
   //
+
+
 
   // This function is used after a message is sent.
 
+
+
   // It does NOT reload all messages unnecessarily.
 
+
+
   // =======================================================
+
+
+
+
 
 
 
@@ -2237,17 +4472,37 @@ function App() {
 
 
 
+
+
+
+
     if (
 
+
+
       !currentUser?.id
+
+
 
     ) {
 
 
 
+
+
+
+
       return;
 
+
+
     }
+
+
+
+
+
+
 
 
 
@@ -2257,15 +4512,33 @@ function App() {
 
 
 
+
+
+
+
       const history =
+
+
 
         await getConversations(
 
+
+
           currentUser.id,
+
+
 
           AGENT_ID
 
+
+
         );
+
+
+
+
+
+
 
 
 
@@ -2273,17 +4546,35 @@ function App() {
 
       setConversations(
 
+
+
         Array.isArray(
+
+
 
           history
 
+
+
         )
+
+
 
           ? history
 
+
+
           : []
 
+
+
       );
+
+
+
+
+
+
 
 
 
@@ -2293,15 +4584,29 @@ function App() {
 
 
 
+
+
+
+
       console.error(
+
+
 
         "Unable to refresh Executive conversation history:",
 
+
+
         error
+
+
 
       );
 
+
+
     }
+
+
 
   }
 
@@ -2309,33 +4614,71 @@ function App() {
 
 
 
+
+
+
+
+
+
   // =======================================================
+
+
 
   // ENSURE CONVERSATION
 
+
+
   // =======================================================
+
+
+
+
 
 
 
   async function ensureConversation(
 
+
+
     question
+
+
 
   ) {
 
 
 
+
+
+
+
     if (
+
+
 
       activeConversationId
 
+
+
     ) {
+
+
+
+
 
 
 
       return activeConversationId;
 
+
+
     }
+
+
+
+
+
+
 
 
 
@@ -2343,19 +4686,39 @@ function App() {
 
     if (
 
+
+
       !currentUser?.id
+
+
 
     ) {
 
 
 
+
+
+
+
       throw new Error(
+
+
 
         "Authenticated user is not available."
 
+
+
       );
 
+
+
     }
+
+
+
+
+
+
 
 
 
@@ -2363,11 +4726,23 @@ function App() {
 
     const title =
 
+
+
       createConversationTitle(
+
+
 
         question
 
+
+
       );
+
+
+
+
+
+
 
 
 
@@ -2375,15 +4750,31 @@ function App() {
 
     const newConversation =
 
+
+
       await createConversation(
+
+
 
         currentUser,
 
+
+
         title,
+
+
 
         AGENT_ID
 
+
+
       );
+
+
+
+
+
+
 
 
 
@@ -2391,19 +4782,39 @@ function App() {
 
     if (
 
+
+
       !newConversation?.id
+
+
 
     ) {
 
 
 
+
+
+
+
       throw new Error(
+
+
 
         "The backend did not return a conversation ID."
 
+
+
       );
 
+
+
     }
+
+
+
+
+
+
 
 
 
@@ -2411,7 +4822,11 @@ function App() {
 
     setActiveConversationId(
 
+
+
       newConversation.id
+
+
 
     );
 
@@ -2419,27 +4834,59 @@ function App() {
 
 
 
+
+
+
+
+
+
     // -----------------------------------------------------
+
+
 
     // Remember immediately.
 
+
+
     //
+
+
 
     // Refresh during/after processing still restores
 
+
+
     // this conversation.
 
+
+
     // -----------------------------------------------------
+
+
+
+
 
 
 
     rememberActiveConversation(
 
+
+
       currentUser.id,
+
+
 
       newConversation.id
 
+
+
     );
+
+
+
+
+
+
 
 
 
@@ -2447,7 +4894,13 @@ function App() {
 
     setConversations(
 
+
+
       (previous) => [
+
+
+
+
 
 
 
@@ -2455,21 +4908,45 @@ function App() {
 
 
 
+
+
+
+
         ...previous.filter(
+
+
 
           (conversation) =>
 
+
+
             conversation.id !==
 
+
+
             newConversation.id
+
+
 
         ),
 
 
 
+
+
+
+
       ]
 
+
+
     );
+
+
+
+
+
+
 
 
 
@@ -2477,29 +4954,55 @@ function App() {
 
     return newConversation.id;
 
+
+
   }
 
 
 
 
 
+
+
+
+
+
+
   // =======================================================
+
+
 
   // SEND QUESTION
 
+
+
   // =======================================================
+
+
+
+
 
 
 
   async function handleSend(
 
+
+
     question
+
+
 
   ) {
 
 
 
+
+
+
+
     const cleanQuestion =
+
+
 
       question?.trim();
 
@@ -2507,17 +5010,35 @@ function App() {
 
 
 
+
+
+
+
+
+
     if (
+
+
 
       !cleanQuestion ||
 
+
+
       isLoading
+
+
 
     ) {
 
 
 
+
+
+
+
       return;
+
+
 
     }
 
@@ -2525,17 +5046,35 @@ function App() {
 
 
 
+
+
+
+
+
+
     if (
 
+
+
       !currentUser?.id
+
+
 
     ) {
 
 
 
+
+
+
+
       alert(
 
+
+
         "Unable to identify the authenticated user."
+
+
 
       );
 
@@ -2543,7 +5082,15 @@ function App() {
 
 
 
+
+
+
+
+
+
       return;
+
+
 
     }
 
@@ -2551,9 +5098,19 @@ function App() {
 
 
 
+
+
+
+
+
+
     setIsLoading(
 
+
+
       true
+
+
 
     );
 
@@ -2561,7 +5118,15 @@ function App() {
 
 
 
+
+
+
+
+
+
     let conversationId =
+
+
 
       null;
 
@@ -2569,11 +5134,25 @@ function App() {
 
 
 
+
+
+
+
+
+
     // =====================================================
+
+
 
     // ENSURE CONVERSATION
 
+
+
     // =====================================================
+
+
+
+
 
 
 
@@ -2581,13 +5160,29 @@ function App() {
 
 
 
+
+
+
+
       conversationId =
+
+
 
         await ensureConversation(
 
+
+
           cleanQuestion
 
+
+
         );
+
+
+
+
+
+
 
 
 
@@ -2597,11 +5192,25 @@ function App() {
 
 
 
+
+
+
+
       setIsLoading(
+
+
 
         false
 
+
+
       );
+
+
+
+
+
+
 
 
 
@@ -2609,11 +5218,23 @@ function App() {
 
       console.error(
 
+
+
         "Unable to create conversation:",
+
+
 
         error
 
+
+
       );
+
+
+
+
+
+
 
 
 
@@ -2621,11 +5242,19 @@ function App() {
 
       alert(
 
+
+
         error instanceof Error
+
+
 
           ? error.message
 
+
+
           : "Unable to create conversation."
+
+
 
       );
 
@@ -2633,7 +5262,15 @@ function App() {
 
 
 
+
+
+
+
+
+
       return;
+
+
 
     }
 
@@ -2641,11 +5278,25 @@ function App() {
 
 
 
+
+
+
+
+
+
     // =====================================================
+
+
 
     // USER MESSAGE
 
+
+
     // =====================================================
+
+
+
+
 
 
 
@@ -2653,21 +5304,41 @@ function App() {
 
 
 
+
+
+
+
       id:
+
+
 
         crypto.randomUUID(),
 
 
 
+
+
+
+
       role:
+
+
 
         "user",
 
 
 
+
+
+
+
       text:
 
+
+
         cleanQuestion,
+
+
 
     };
 
@@ -2675,15 +5346,31 @@ function App() {
 
 
 
+
+
+
+
+
+
     // =====================================================
+
+
 
     // TEMPORARY LOADING MESSAGE
 
+
+
     // =====================================================
+
+
+
+
 
 
 
     const loadingId =
+
+
 
       crypto.randomUUID();
 
@@ -2691,9 +5378,21 @@ function App() {
 
 
 
+
+
+
+
+
+
     setMessages(
 
+
+
       (previous) => [
+
+
+
+
 
 
 
@@ -2701,83 +5400,169 @@ function App() {
 
 
 
+
+
+
+
         userMessage,
+
+
+
+
 
 
 
         {
 
+
+
           id:
+
+
 
             loadingId,
 
 
 
+
+
+
+
           role:
+
+
 
             "ai",
 
 
 
+
+
+
+
           engine:
+
+
 
             "PLANNER",
 
 
 
+
+
+
+
           text:
+
+
 
             "Understanding your question...",
 
 
 
+
+
+
+
           progressStage:
+
+
 
             "understanding",
 
 
 
+
+
+
+
           visual:
+
+
 
             null,
 
 
 
+
+
+
+
           rows:
 
+
+
             [],
+
+
+
+
 
 
 
           rowCount:
 
+
+
             0,
+
+
+
+
 
 
 
           _streamSummary:
 
+
+
             "",
+
+
+
+
 
 
 
           _streamInsights:
 
+
+
             [],
+
+
+
+
 
 
 
           isLoading:
 
+
+
             true,
+
+
 
         },
 
 
 
+
+
+
+
       ]
 
+
+
     );
+
+
+
+
+
+
 
 
 
@@ -2787,17 +5572,35 @@ function App() {
 
 
 
+
+
+
+
       // ===================================================
+
+
 
       // SSE REQUEST
 
+
+
       // ===================================================
+
+
+
+
 
 
 
       const response =
 
+
+
         await sendMessageStream(
+
+
+
+
 
 
 
@@ -2805,7 +5608,15 @@ function App() {
 
 
 
+
+
+
+
           conversationId,
+
+
+
+
 
 
 
@@ -2813,17 +5624,33 @@ function App() {
 
 
 
+
+
+
+
             const eventType =
+
+
 
               String(
 
+
+
                 progress?.type ||
+
+
 
                 ""
 
+
+
               )
 
+
+
                 .trim()
+
+
 
                 .toLowerCase();
 
@@ -2831,37 +5658,79 @@ function App() {
 
 
 
+
+
+
+
+
+
             // =================================================
+
+
 
             // EXECUTIVE SUMMARY + KEY INSIGHTS TOKENS
 
+
+
             // =================================================
+
+
+
+
 
 
 
             if (
 
+
+
               eventType ===
 
+
+
               "token"
+
+
 
             ) {
 
 
 
+
+
+
+
               const section =
+
+
 
                 String(
 
+
+
                   progress?.section ||
+
+
 
                   ""
 
+
+
                 )
+
+
 
                   .trim()
 
+
+
                   .toLowerCase();
+
+
+
+
+
+
 
 
 
@@ -2869,11 +5738,19 @@ function App() {
 
               const delta =
 
+
+
                 String(
+
+
 
                   progress?.delta ||
 
+
+
                   ""
+
+
 
                 );
 
@@ -2881,15 +5758,31 @@ function App() {
 
 
 
+
+
+
+
+
+
               if (
 
+
+
                 !delta
+
+
 
               ) {
 
 
 
+
+
+
+
                 return;
+
+
 
               }
 
@@ -2897,29 +5790,63 @@ function App() {
 
 
 
+
+
+
+
+
+
               setMessages(
+
+
 
                 (previous) =>
 
+
+
                   previous.map(
+
+
 
                     (message) => {
 
 
 
+
+
+
+
                       if (
+
+
 
                         message.id !==
 
+
+
                         loadingId
+
+
 
                       ) {
 
 
 
+
+
+
+
                         return message;
 
+
+
                       }
+
+
+
+
+
+
 
 
 
@@ -2927,11 +5854,19 @@ function App() {
 
                       const currentSummary =
 
+
+
                         String(
+
+
 
                           message._streamSummary ||
 
+
+
                           ""
+
+
 
                         );
 
@@ -2939,19 +5874,39 @@ function App() {
 
 
 
+
+
+
+
+
+
                       const currentInsights =
+
+
 
                         Array.isArray(
 
+
+
                           message._streamInsights
+
+
 
                         )
 
+
+
                           ? [
+
+
 
                               ...message._streamInsights
 
+
+
                             ]
+
+
 
                           : [];
 
@@ -2959,19 +5914,39 @@ function App() {
 
 
 
+
+
+
+
+
+
                       if (
+
+
 
                         section ===
 
+
+
                         "executive_summary"
+
+
 
                       ) {
 
 
 
+
+
+
+
                         const nextSummary =
 
+
+
                           currentSummary +
+
+
 
                           delta;
 
@@ -2979,49 +5954,103 @@ function App() {
 
 
 
+
+
+
+
+
+
                         return {
+
+
 
                           ...message,
 
 
 
+
+
+
+
                           engine:
+
+
 
                             "SQL",
 
 
 
+
+
+
+
                           _streamSummary:
+
+
 
                             nextSummary,
 
 
 
+
+
+
+
                           _streamInsights:
+
+
 
                             currentInsights,
 
 
 
+
+
+
+
                           text:
+
+
 
                             `Executive Summary\n${nextSummary}`,
 
 
 
+
+
+
+
                           progressStage:
+
+
 
                             "executive_summary",
 
 
 
+
+
+
+
                           isLoading:
+
+
 
                             true,
 
+
+
                         };
 
+
+
                       }
+
+
+
+
+
+
 
 
 
@@ -3029,29 +6058,55 @@ function App() {
 
                       if (
 
+
+
                         section ===
 
+
+
                         "key_insight"
+
+
 
                       ) {
 
 
 
+
+
+
+
                         const insightIndex =
+
+
 
                           Number.isInteger(
 
+
+
                             progress?.index
+
+
 
                           )
 
+
+
                             ? progress.index
+
+
 
                             : Number(
 
+
+
                                 progress?.index ||
 
+
+
                                 0
+
+
 
                               );
 
@@ -3059,21 +6114,43 @@ function App() {
 
 
 
+
+
+
+
+
+
                         while (
+
+
 
                           currentInsights.length <=
 
+
+
                           insightIndex
+
+
 
                         ) {
 
 
 
+
+
+
+
                           currentInsights.push(
+
+
 
                             ""
 
+
+
                           );
+
+
 
                         }
 
@@ -3081,23 +6158,47 @@ function App() {
 
 
 
+
+
+
+
+
+
                         currentInsights[
+
+
 
                           insightIndex
 
+
+
                         ] =
+
+
 
                           String(
 
+
+
                             currentInsights[
+
+
 
                               insightIndex
 
+
+
                             ] ||
+
+
 
                             ""
 
+
+
                           )
+
+
 
                           + delta;
 
@@ -3105,43 +6206,87 @@ function App() {
 
 
 
+
+
+
+
+
+
                         const insightText =
+
+
 
                           currentInsights
 
+
+
                             .filter(
+
+
 
                               (
 
+
+
                                 item
 
+
+
                               ) =>
+
+
 
                                 String(
 
+
+
                                   item ||
+
+
 
                                   ""
 
+
+
                                 ).trim()
 
+
+
                             )
+
+
 
                             .map(
 
+
+
                               (
+
+
 
                                 item
 
+
+
                               ) =>
+
+
 
                                 `• ${item}`
 
+
+
                             )
+
+
 
                             .join(
 
+
+
                               "\n"
+
+
 
                             );
 
@@ -3149,57 +6294,115 @@ function App() {
 
 
 
+
+
+
+
+
+
                         return {
+
+
 
                           ...message,
 
 
 
+
+
+
+
                           engine:
+
+
 
                             "SQL",
 
 
 
+
+
+
+
                           _streamSummary:
+
+
 
                             currentSummary,
 
 
 
+
+
+
+
                           _streamInsights:
+
+
 
                             currentInsights,
 
 
 
+
+
+
+
                           text:
+
+
 
                             (
 
+
+
                               `Executive Summary\n${currentSummary}`
+
+
 
                               + "\n\n"
 
+
+
                               + "Key Insights\n"
 
+
+
                               + insightText
+
+
 
                             ),
 
 
 
+
+
+
+
                           progressStage:
+
+
 
                             "key_insights",
 
 
 
+
+
+
+
                           isLoading:
+
+
 
                             true,
 
+
+
                         };
+
+
 
                       }
 
@@ -3207,11 +6410,23 @@ function App() {
 
 
 
+
+
+
+
+
+
                       return message;
+
+
 
                     }
 
+
+
                   )
+
+
 
               );
 
@@ -3219,7 +6434,15 @@ function App() {
 
 
 
+
+
+
+
+
+
               return;
+
+
 
             }
 
@@ -3227,35 +6450,71 @@ function App() {
 
 
 
+
+
+
+
+
+
             // =================================================
+
+
 
             // SECTION COMPLETE
 
+
+
             // =================================================
+
+
+
+
 
 
 
             if (
 
+
+
               eventType ===
 
+
+
               "section_complete"
+
+
 
             ) {
 
 
 
+
+
+
+
               const section =
+
+
 
                 String(
 
+
+
                   progress?.section ||
+
+
 
                   ""
 
+
+
                 )
 
+
+
                   .trim()
+
+
 
                   .toLowerCase();
 
@@ -3263,33 +6522,67 @@ function App() {
 
 
 
+
+
+
+
+
+
               setMessages(
+
+
 
                 (previous) =>
 
+
+
                   previous.map(
+
+
 
                     (message) =>
 
+
+
                       message.id ===
+
+
 
                       loadingId
 
+
+
                         ? {
+
+
 
                             ...message,
 
 
 
+
+
+
+
                             progressStage:
+
+
 
                               section,
 
+
+
                           }
+
+
 
                         : message
 
+
+
                   )
+
+
 
               );
 
@@ -3297,7 +6590,15 @@ function App() {
 
 
 
+
+
+
+
+
+
               return;
+
+
 
             }
 
@@ -3305,75 +6606,151 @@ function App() {
 
 
 
+
+
+
+
+
+
             // =================================================
+
+
 
             // CHART — ALWAYS AFTER NARRATIVE
 
+
+
             // =================================================
+
+
+
+
 
 
 
             if (
 
+
+
               eventType ===
 
+
+
               "visual"
+
+
 
             ) {
 
 
 
+
+
+
+
               setMessages(
+
+
 
                 (previous) =>
 
+
+
                   previous.map(
+
+
 
                     (message) =>
 
+
+
                       message.id ===
+
+
 
                       loadingId
 
+
+
                         ? {
 
+
+
                             ...message,
+
+
+
+
 
 
 
                             visual:
 
+
+
                               (
+
+
 
                                 progress?.visual &&
 
+
+
                                 typeof progress.visual ===
+
+
 
                                   "object"
 
+
+
                               )
 
+
+
                                 ? progress.visual
+
+
 
                                 : null,
 
 
 
+
+
+
+
                             progressStage:
+
+
 
                               "visual",
 
 
 
+
+
+
+
                             isLoading:
+
+
 
                               false,
 
+
+
                           }
+
+
 
                         : message
 
+
+
                   )
+
+
 
               );
 
@@ -3381,7 +6758,15 @@ function App() {
 
 
 
+
+
+
+
+
+
               return;
+
+
 
             }
 
@@ -3389,33 +6774,67 @@ function App() {
 
 
 
+
+
+
+
+
+
             // =================================================
+
+
 
             // RESULT TABLE — ALWAYS AFTER CHART
 
+
+
             // =================================================
+
+
+
+
 
 
 
             if (
 
+
+
               eventType ===
 
+
+
               "data"
+
+
 
             ) {
 
 
 
+
+
+
+
               const streamRows =
+
+
 
                 Array.isArray(
 
+
+
                   progress?.rows
+
+
 
                 )
 
+
+
                   ? progress.rows
+
+
 
                   : [];
 
@@ -3423,55 +6842,115 @@ function App() {
 
 
 
+
+
+
+
+
+
               setMessages(
+
+
 
                 (previous) =>
 
+
+
                   previous.map(
+
+
 
                     (message) =>
 
+
+
                       message.id ===
+
+
 
                       loadingId
 
+
+
                         ? {
+
+
 
                             ...message,
 
 
 
+
+
+
+
                             rows:
+
+
 
                               streamRows,
 
 
 
+
+
+
+
                             rowCount:
 
+
+
                               progress?.row_count ??
+
+
 
                               streamRows.length,
 
 
 
+
+
+
+
                             progressStage:
+
+
 
                               "data",
 
 
 
+
+
+
+
                             isLoading:
+
+
 
                               false,
 
+
+
                           }
+
+
 
                         : message
 
+
+
                   )
 
+
+
               );
+
+
+
+
+
+
 
 
 
@@ -3479,27 +6958,51 @@ function App() {
 
               return;
 
+
+
             }
 
 
 
 
 
+
+
+
+
+
+
             // =================================================
+
+
 
             // NORMAL PROGRESS
 
+
+
             // =================================================
+
+
+
+
 
 
 
             const progressMessage =
 
+
+
               String(
+
+
 
                 progress?.message ||
 
+
+
                 "Processing your request..."
+
+
 
               );
 
@@ -3507,61 +7010,125 @@ function App() {
 
 
 
+
+
+
+
+
+
             setMessages(
+
+
 
               (previous) =>
 
+
+
                 previous.map(
+
+
 
                   (message) =>
 
+
+
                     message.id ===
+
+
 
                     loadingId
 
+
+
                       ? (
+
+
 
                           message._streamSummary
 
+
+
                             ? message
 
+
+
                             : {
+
+
 
                                 ...message,
 
 
 
+
+
+
+
                                 text:
+
+
 
                                   progressMessage,
 
 
 
+
+
+
+
                                 progressStage:
+
+
 
                                   progress?.stage ||
 
+
+
                                   message.progressStage ||
+
+
 
                                   null,
 
 
 
+
+
+
+
                                 isLoading:
+
+
 
                                   true,
 
+
+
                               }
+
+
 
                         )
 
+
+
                       : message
+
+
 
                 )
 
+
+
             );
 
+
+
           }
+
+
+
+
 
 
 
@@ -3571,35 +7138,71 @@ function App() {
 
 
 
+
+
+
+
+
+
       // ===================================================
+
+
 
       // ROWS
 
+
+
       // ===================================================
+
+
+
+
 
 
 
       const rows =
 
+
+
         Array.isArray(
+
+
 
           response?.rows
 
+
+
         )
+
+
 
           ? response.rows
 
+
+
           : (
+
+
 
               Array.isArray(
 
+
+
                 response?.table
+
+
 
               )
 
+
+
                 ? response.table
 
+
+
                 : []
+
+
 
             );
 
@@ -3607,31 +7210,63 @@ function App() {
 
 
 
+
+
+
+
+
+
       // ===================================================
+
+
 
       // ENGINE
 
+
+
       // ===================================================
+
+
+
+
 
 
 
       const responseEngine =
 
+
+
         String(
+
+
 
           response?.engine ||
 
+
+
           (
+
+
 
             rows.length > 0 ||
 
+
+
             response?.generated_sql
+
+
 
               ? "SQL"
 
+
+
               : "CHAT"
 
+
+
           )
+
+
 
         ).toUpperCase();
 
@@ -3639,59 +7274,119 @@ function App() {
 
 
 
+
+
+
+
+
+
       // ===================================================
+
+
 
       // ANSWER
 
+
+
       // ===================================================
+
+
+
+
 
 
 
       const answer =
 
+
+
         (
 
+
+
           responseEngine ===
+
+
 
           "SQL"
 
+
+
             ? (
 
+
+
                 response
+
+
 
                   ?.executive_summary ||
 
+
+
                 response?.answer ||
+
+
 
                 response?.summary
 
+
+
               )
+
+
 
             : (
 
+
+
                 response?.answer ||
+
+
 
                 response?.summary ||
 
+
+
                 response
+
+
 
                   ?.executive_summary
 
+
+
               )
+
+
 
         )
 
+
+
         ||
+
+
 
         (
 
+
+
           responseEngine ===
+
+
 
             "CHAT"
 
+
+
             ? "No response was generated."
 
+
+
             : "The query completed successfully."
+
+
 
         );
 
@@ -3699,51 +7394,116 @@ function App() {
 
 
 
+
+
+
+
+
+
       // ===================================================
+
+
 
       // ASSISTANT MESSAGE
 
+
+
       // ===================================================
 
+
+
+
+
+
+
+      console.log(
+        "FINAL EXECUTIVE RESPONSE:",
+        response
+      );
+
+      console.log(
+        "VISIT INTELLIGENCE PAYLOAD:",
+        response?.visit_intelligence
+      );
 
 
       const assistantMessage = {
 
 
 
+
+
+
+
         id:
+
+
 
           crypto.randomUUID(),
 
 
 
+
+
+
+
         role:
+
+
 
           "ai",
 
 
 
+
+
+
+
         isLoading:
+
+
 
           false,
 
 
 
+
+
+
+
         progressStage:
+
+
 
           null,
 
 
 
+
+
+
+
         engine:
+
+
 
           responseEngine,
 
 
 
+
+
+
+
         text:
 
+
+
           answer,
+
+
+
+
 
 
 
@@ -3751,7 +7511,13 @@ function App() {
 
 
 
+
+
+
+
         content:
+
+
 
           answer,
 
@@ -3759,24 +7525,49 @@ function App() {
 
 
 
+
+
+
+
+
+
         // ===================================================
+
         // VISIT INTELLIGENCE
+
         //
+
         // Dedicated payload returned by the backend.
+
         // ChatWindow routes this to VisitIntelligenceCard.
+
         // ===================================================
+
+
 
         visitIntelligence:
 
+
+
           normalizeObjectValue(
 
+
+
             response
+
               ?.visit_intelligence ??
 
+
+
             response
+
               ?.visitIntelligence ??
 
+
+
             null
+
+
 
           ),
 
@@ -3784,11 +7575,23 @@ function App() {
 
 
 
+
+
+
+
+
+
         executiveSummary:
+
+
 
           response
 
+
+
             ?.executive_summary ??
+
+
 
           null,
 
@@ -3796,15 +7599,31 @@ function App() {
 
 
 
+
+
+
+
+
+
         keyInsights:
+
+
 
           Array.isArray(
 
+
+
             response?.key_insights
+
+
 
           )
 
+
+
             ? response.key_insights
+
+
 
             : [],
 
@@ -3812,19 +7631,39 @@ function App() {
 
 
 
+
+
+
+
+
+
         visual:
+
+
 
           (
 
+
+
             response?.visual &&
+
+
 
             typeof response.visual ===
 
+
+
               "object"
+
+
 
           )
 
+
+
             ? response.visual
+
+
 
             : null,
 
@@ -3832,33 +7671,71 @@ function App() {
 
 
 
+
+
+
+
+
+
         suggestions:
+
+
 
           Array.isArray(
 
+
+
             response?.suggestions
+
+
 
           )
 
+
+
             ? response.suggestions
+
+
 
             : (
 
+
+
                 Array.isArray(
+
+
 
                   response
 
+
+
                     ?.suggested_questions
+
+
 
                 )
 
+
+
                   ? response
+
+
 
                       .suggested_questions
 
+
+
                   : []
 
+
+
               ),
+
+
+
+
+
+
 
 
 
@@ -3870,13 +7747,31 @@ function App() {
 
 
 
+
+
+
+
+
+
         generatedQuery:
+
+
 
           response?.generated_sql ||
 
+
+
           response?.executed_sql ||
 
+
+
           null,
+
+
+
+
+
+
 
 
 
@@ -3884,9 +7779,19 @@ function App() {
 
         executedQuery:
 
+
+
           response?.executed_sql ||
 
+
+
           null,
+
+
+
+
+
+
 
 
 
@@ -3894,7 +7799,15 @@ function App() {
 
         queryType:
 
+
+
           responseEngine,
+
+
+
+
+
+
 
 
 
@@ -3902,17 +7815,31 @@ function App() {
 
         source:
 
+
+
           response?.source ||
+
+
 
           (
 
+
+
             responseEngine ===
+
+
 
               "CHAT"
 
+
+
               ? "GPT"
 
+
+
               : "Azure SQL"
+
+
 
           ),
 
@@ -3920,9 +7847,19 @@ function App() {
 
 
 
+
+
+
+
+
+
         rowCount:
 
+
+
           response?.row_count ??
+
+
 
           rows.length,
 
@@ -3930,19 +7867,43 @@ function App() {
 
 
 
+
+
+
+
+
+
         executionTime:
 
+
+
           response
+
+
 
             ?.execution_time_ms ??
 
+
+
           response
+
+
 
             ?.timings
 
+
+
             ?.request_total_ms ??
 
+
+
           null,
+
+
+
+
+
+
 
 
 
@@ -3950,9 +7911,19 @@ function App() {
 
         timings:
 
+
+
           response?.timings ??
 
+
+
           null,
+
+
+
+
+
+
 
 
 
@@ -3960,7 +7931,11 @@ function App() {
 
         status:
 
+
+
           response?.status ??
+
+
 
           "success",
 
@@ -3968,11 +7943,27 @@ function App() {
 
 
 
+
+
+
+
+
+
         errorMessage:
+
+
 
           response?.message ??
 
+
+
           null,
+
+
+
+
+
+
 
 
 
@@ -3980,9 +7971,15 @@ function App() {
 
         requestPlan:
 
+
+
           response?.request_plan ??
 
+
+
           null,
+
+
 
       };
 
@@ -3990,31 +7987,63 @@ function App() {
 
 
 
+
+
+
+
+
+
       // ===================================================
+
+
 
       // REPLACE LOADING MESSAGE
 
+
+
       // ===================================================
+
+
+
+
 
 
 
       setMessages(
 
+
+
         (previous) =>
+
+
 
           previous.map(
 
+
+
             (message) =>
+
+
 
               message.id ===
 
+
+
               loadingId
+
+
 
                 ? assistantMessage
 
+
+
                 : message
 
+
+
           )
+
+
 
       );
 
@@ -4022,19 +8051,39 @@ function App() {
 
 
 
+
+
+
+
+
+
       // ===================================================
+
+
 
       // KEEP CURRENT CONVERSATION FOR REFRESH
 
+
+
       // ===================================================
+
+
+
+
 
 
 
       rememberActiveConversation(
 
+
+
         currentUser.id,
 
+
+
         conversationId
+
+
 
       );
 
@@ -4042,11 +8091,25 @@ function App() {
 
 
 
+
+
+
+
+
+
       // ===================================================
+
+
 
       // REFRESH SIDEBAR
 
+
+
       // ===================================================
+
+
+
+
 
 
 
@@ -4056,17 +8119,39 @@ function App() {
 
 
 
+
+
+
+
+
+
     } catch (error) {
+
+
+
+
 
 
 
       console.error(
 
+
+
         "Unable to process chat request:",
+
+
 
         error
 
+
+
       );
+
+
+
+
+
+
 
 
 
@@ -4076,85 +8161,169 @@ function App() {
 
 
 
+
+
+
+
         id:
+
+
 
           crypto.randomUUID(),
 
 
 
+
+
+
+
         role:
+
+
 
           "ai",
 
 
 
+
+
+
+
         isLoading:
+
+
 
           false,
 
 
 
+
+
+
+
         progressStage:
 
+
+
           null,
+
+
+
+
 
 
 
         engine:
 
+
+
           "SYSTEM",
+
+
+
+
 
 
 
         text:
 
+
+
           error instanceof Error
+
+
 
             ? error.message
 
+
+
             : (
+
+
 
                 "Unable to process the "
 
+
+
                 + "request. Please try again."
+
+
 
               ),
 
 
 
+
+
+
+
         status:
+
+
 
           "error",
 
 
 
+
+
+
+
         source:
+
+
 
           "System",
 
 
 
+
+
+
+
         rows:
 
+
+
           [],
+
+
+
+
 
 
 
         keyInsights:
 
+
+
           [],
+
+
+
+
 
 
 
         suggestions:
 
+
+
           [],
+
+
+
+
 
 
 
         visual:
 
+
+
           null,
+
+
 
       };
 
@@ -4162,23 +8331,47 @@ function App() {
 
 
 
+
+
+
+
+
+
       setMessages(
+
+
 
         (previous) =>
 
+
+
           previous.map(
+
+
 
             (message) =>
 
+
+
               message.id ===
+
+
 
               loadingId
 
+
+
                 ? errorMessage
+
+
 
                 : message
 
+
+
           )
+
+
 
       );
 
@@ -4186,33 +8379,71 @@ function App() {
 
 
 
+
+
+
+
+
+
       // ---------------------------------------------------
+
+
 
       // Conversation itself still exists.
 
+
+
       // Remember it so refresh restores persisted messages.
 
+
+
       // ---------------------------------------------------
+
+
+
+
 
 
 
       if (
 
+
+
         conversationId
+
+
 
       ) {
 
 
 
+
+
+
+
         rememberActiveConversation(
+
+
 
           currentUser.id,
 
+
+
           conversationId
+
+
 
         );
 
+
+
       }
+
+
+
+
+
+
 
 
 
@@ -4222,13 +8453,25 @@ function App() {
 
 
 
+
+
+
+
       setIsLoading(
+
+
 
         false
 
+
+
       );
 
+
+
     }
+
+
 
   }
 
@@ -4236,11 +8479,25 @@ function App() {
 
 
 
+
+
+
+
+
+
   // =======================================================
+
+
 
   // NEW CHAT
 
+
+
   // =======================================================
+
+
+
+
 
 
 
@@ -4248,17 +8505,37 @@ function App() {
 
 
 
+
+
+
+
     if (
 
+
+
       isLoading
+
+
 
     ) {
 
 
 
+
+
+
+
       return;
 
+
+
     }
+
+
+
+
+
+
 
 
 
@@ -4266,9 +8543,19 @@ function App() {
 
     setActiveConversationId(
 
+
+
       null
 
+
+
     );
+
+
+
+
+
+
 
 
 
@@ -4276,7 +8563,11 @@ function App() {
 
     setMessages([
 
+
+
       initialMessage,
+
+
 
     ]);
 
@@ -4284,25 +8575,51 @@ function App() {
 
 
 
+
+
+
+
+
+
     // -----------------------------------------------------
+
+
 
     // Important:
 
+
+
     //
+
+
 
     // If user clicks New Chat and refreshes before asking
 
+
+
     // anything, don't automatically reopen an old chat.
 
+
+
     // -----------------------------------------------------
+
+
+
+
 
 
 
     rememberNewChat(
 
+
+
       currentUser?.id
 
+
+
     );
+
+
 
   }
 
@@ -4310,33 +8627,67 @@ function App() {
 
 
 
+
+
+
+
+
+
   // =======================================================
+
+
 
   // HISTORY CLICK
 
+
+
   // =======================================================
+
+
+
+
 
 
 
   async function handleHistoryClick(
 
+
+
     conversationId
+
+
 
   ) {
 
 
 
+
+
+
+
     if (
+
+
 
       isLoading ||
 
+
+
       !conversationId
+
+
 
     ) {
 
 
 
+
+
+
+
       return;
+
+
 
     }
 
@@ -4344,11 +8695,27 @@ function App() {
 
 
 
+
+
+
+
+
+
     setIsLoading(
+
+
 
       true
 
+
+
     );
+
+
+
+
+
+
 
 
 
@@ -4358,13 +8725,29 @@ function App() {
 
 
 
+
+
+
+
       console.log(
+
+
 
         "Loading Executive messages:",
 
+
+
         conversationId
 
+
+
       );
+
+
+
+
+
+
 
 
 
@@ -4372,11 +8755,23 @@ function App() {
 
       const history =
 
+
+
         await getConversationMessages(
+
+
 
           conversationId
 
+
+
         );
+
+
+
+
+
+
 
 
 
@@ -4384,11 +8779,23 @@ function App() {
 
       console.log(
 
+
+
         "Executive messages loaded:",
+
+
 
         history
 
+
+
       );
+
+
+
+
+
+
 
 
 
@@ -4396,17 +8803,31 @@ function App() {
 
       const formattedMessages =
 
+
+
         Array.isArray(
+
+
 
           history
 
+
+
         )
+
+
 
           ? history.map(
 
+
+
               normalizeHistoryMessage
 
+
+
             )
+
+
 
           : [];
 
@@ -4414,11 +8835,27 @@ function App() {
 
 
 
+
+
+
+
+
+
       setActiveConversationId(
+
+
 
         conversationId
 
+
+
       );
+
+
+
+
+
+
 
 
 
@@ -4426,9 +8863,15 @@ function App() {
 
       rememberActiveConversation(
 
+
+
         currentUser.id,
 
+
+
         conversationId
+
+
 
       );
 
@@ -4436,19 +8879,43 @@ function App() {
 
 
 
+
+
+
+
+
+
       if (
 
+
+
         formattedMessages.length > 0
+
+
 
       ) {
 
 
 
+
+
+
+
         setMessages(
+
+
 
           formattedMessages
 
+
+
         );
+
+
+
+
+
+
 
 
 
@@ -4458,13 +8925,29 @@ function App() {
 
 
 
+
+
+
+
         setMessages([
+
+
 
           initialMessage,
 
+
+
         ]);
 
+
+
       }
+
+
+
+
+
+
 
 
 
@@ -4474,13 +8957,29 @@ function App() {
 
 
 
+
+
+
+
       console.error(
+
+
 
         "Unable to load conversation:",
 
+
+
         error
 
+
+
       );
+
+
+
+
+
+
 
 
 
@@ -4488,19 +8987,39 @@ function App() {
 
       alert(
 
+
+
         error instanceof Error
+
+
 
           ? error.message
 
+
+
           : (
+
+
 
               "Unable to load "
 
+
+
               + "conversation history."
+
+
 
             )
 
+
+
       );
+
+
+
+
+
+
 
 
 
@@ -4510,13 +9029,25 @@ function App() {
 
 
 
+
+
+
+
       setIsLoading(
+
+
 
         false
 
+
+
       );
 
+
+
     }
+
+
 
   }
 
@@ -4524,71 +9055,143 @@ function App() {
 
 
 
+
+
+
+
+
+
   // =======================================================
+
+
 
   // USER LOADING
 
+
+
   // =======================================================
+
+
+
+
 
 
 
   if (
 
+
+
     userLoading
+
+
 
   ) {
 
 
 
+
+
+
+
     return (
+
+
 
       <div
 
+
+
         style={{
 
+
+
           height:
+
+
 
             "100vh",
 
 
 
+
+
+
+
           display:
+
+
 
             "flex",
 
 
 
+
+
+
+
           alignItems:
 
+
+
             "center",
+
+
+
+
 
 
 
           justifyContent:
 
+
+
             "center",
+
+
+
+
 
 
 
           fontFamily:
 
+
+
             "Arial, sans-serif",
+
+
+
+
 
 
 
           color:
 
+
+
             "#174779",
+
+
 
         }}
 
+
+
       >
+
+
 
         Loading your profile...
 
+
+
       </div>
 
+
+
     );
+
+
 
   }
 
@@ -4596,79 +9199,159 @@ function App() {
 
 
 
+
+
+
+
+
+
   // =======================================================
+
+
 
   // USER ERROR
 
+
+
   // =======================================================
+
+
+
+
 
 
 
   if (
 
+
+
     userError ||
 
+
+
     !currentUser
+
+
 
   ) {
 
 
 
+
+
+
+
     return (
+
+
 
       <div
 
+
+
         style={{
 
+
+
           height:
+
+
 
             "100vh",
 
 
 
+
+
+
+
           display:
+
+
 
             "flex",
 
 
 
+
+
+
+
           flexDirection:
+
+
 
             "column",
 
 
 
+
+
+
+
           alignItems:
 
+
+
             "center",
+
+
+
+
 
 
 
           justifyContent:
 
+
+
             "center",
+
+
+
+
 
 
 
           gap:
 
+
+
             8,
+
+
+
+
 
 
 
           fontFamily:
 
+
+
             "Arial, sans-serif",
 
+
+
         }}
+
+
 
       >
 
 
 
+
+
+
+
         <strong>
 
+
+
           Unable to load your user profile.
+
+
 
         </strong>
 
@@ -4676,17 +9359,35 @@ function App() {
 
 
 
+
+
+
+
+
+
         <span>
 
+
+
           {userError}
+
+
 
         </span>
 
 
 
+
+
+
+
       </div>
 
+
+
     );
+
+
 
   }
 
@@ -4694,11 +9395,25 @@ function App() {
 
 
 
+
+
+
+
+
+
   // =======================================================
+
+
 
   // APPLICATION
 
+
+
   // =======================================================
+
+
+
+
 
 
 
@@ -4706,75 +9421,149 @@ function App() {
 
 
 
+
+
+
+
     <Layout
+
+
 
       user={
 
+
+
         currentUser
 
+
+
       }
+
+
+
+
 
 
 
       chatHistory={
 
+
+
         conversations
 
+
+
       }
+
+
+
+
 
 
 
       activeConversationId={
 
+
+
         activeConversationId
 
+
+
       }
+
+
+
+
 
 
 
       onHistoryClick={
 
+
+
         handleHistoryClick
 
+
+
       }
+
+
+
+
 
 
 
       onNewChat={
 
+
+
         handleNewChat
 
+
+
       }
+
+
 
     >
 
 
 
+
+
+
+
       <div
+
+
 
         className=
 
+
+
           "chat-container"
+
+
 
       >
 
 
 
+
+
+
+
         <ChatWindow
+
+
 
           messages={
 
+
+
             messages
 
+
+
           }
+
+
+
+
 
 
 
           onSuggestionClick={
 
+
+
             handleSend
 
+
+
           }
+
+
 
         />
 
@@ -4782,41 +9571,87 @@ function App() {
 
 
 
+
+
+
+
+
+
         <div
+
+
 
           className=
 
+
+
             "composer-section"
+
+
 
         >
 
 
 
+
+
+
+
           <SuggestedQuestions
+
+
 
             questions={
 
+
+
               suggestedQuestions
 
+
+
             }
+
+
+
+
 
 
 
             onSelect={
 
+
+
               handleSend
 
+
+
             }
+
+
+
+
 
 
 
             disabled={
 
+
+
               isLoading
+
+
 
             }
 
+
+
           />
+
+
+
+
+
+
 
 
 
@@ -4824,31 +9659,63 @@ function App() {
 
           <ChatInput
 
+
+
             onSend={
+
+
 
               handleSend
 
+
+
             }
+
+
+
+
 
 
 
             disabled={
 
+
+
               isLoading
+
+
 
             }
 
 
 
+
+
+
+
             placeholder=
 
+
+
               "Ask a general question or analyze your business data..."
+
+
 
           />
 
 
 
+
+
+
+
         </div>
+
+
+
+
+
+
 
 
 
@@ -4856,17 +9723,33 @@ function App() {
 
         <div
 
+
+
           className=
+
+
 
             "chat-footer"
 
+
+
         >
+
+
 
           AI-generated answers and insights
 
+
+
           may require business validation.
 
+
+
         </div>
+
+
+
+
 
 
 
@@ -4874,11 +9757,25 @@ function App() {
 
 
 
+
+
+
+
     </Layout>
+
+
 
   );
 
+
+
 }
+
+
+
+
+
+
 
 
 
