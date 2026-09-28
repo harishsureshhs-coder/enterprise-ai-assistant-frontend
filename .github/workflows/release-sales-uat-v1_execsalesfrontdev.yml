@@ -4,95 +4,204 @@ on:
   push:
     branches:
       - release/sales-uat-v1
+
   workflow_dispatch:
 
+
 jobs:
+
+  # =====================================================
+  # BUILD
+  # =====================================================
+
   build:
+
     runs-on: ubuntu-latest
 
     permissions:
       contents: read
 
     steps:
+
       # ---------------------------------------------------
       # CHECKOUT
       # ---------------------------------------------------
+
       - name: Checkout repository
         uses: actions/checkout@v4
+
 
       # ---------------------------------------------------
       # NODE
       # ---------------------------------------------------
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
+
         with:
           node-version: "24.x"
           cache: npm
 
+
       # ---------------------------------------------------
       # INSTALL
       # ---------------------------------------------------
+
       - name: Install dependencies
         run: npm ci
 
+
       # ---------------------------------------------------
       # BUILD VITE APPLICATION
+      #
+      # IMPORTANT:
+      #
+      # VITE_* variables are injected at BUILD TIME.
+      #
+      # This is the UAT backend App Service URL.
       # ---------------------------------------------------
+
       - name: Build application
-        run: npm run build
+
+        env:
+          VITE_API_URL: "https://exesalesdev-fdfkfpb9fmabcadg.eastus-01.azurewebsites.net"
+
+        run: |
+          echo "Building UAT frontend..."
+
+          if [ -z "$VITE_API_URL" ]; then
+            echo "ERROR: VITE_API_URL is not configured."
+            exit 1
+          fi
+
+          echo "UAT backend API configured."
+
+          npm run build
+
 
       # ---------------------------------------------------
       # VERIFY DIST
       # ---------------------------------------------------
+
       - name: Verify build output
+
         run: |
           echo "Checking dist folder..."
+
+          if [ ! -d "dist" ]; then
+            echo "ERROR: dist folder was not created."
+            exit 1
+          fi
+
           ls -la dist
+
           echo "Checking assets..."
+
+          if [ ! -d "dist/assets" ]; then
+            echo "ERROR: dist/assets folder was not created."
+            exit 1
+          fi
+
           ls -la dist/assets
+
+
+      # ---------------------------------------------------
+      # VERIFY API URL WAS INJECTED
+      #
+      # This catches the exact UAT issue we had:
+      #
+      # "VITE_API_URL is not configured."
+      # ---------------------------------------------------
+
+      - name: Verify backend API configuration
+
+        run: |
+          echo "Checking compiled frontend for UAT backend URL..."
+
+          if ! grep -R \
+            "exesalesdev-fdfkfpb9fmabcadg.eastus-01.azurewebsites.net" \
+            dist/assets \
+            >/dev/null 2>&1; then
+
+            echo "ERROR: UAT backend API URL was not injected into the Vite bundle."
+            exit 1
+
+          fi
+
+          echo "UAT backend API URL found in compiled bundle."
+
 
       # ---------------------------------------------------
       # UPLOAD ONLY DIST
       # ---------------------------------------------------
+
       - name: Upload frontend build artifact
+
         uses: actions/upload-artifact@v4
+
         with:
           name: frontend-dist
           path: dist/
           if-no-files-found: error
 
 
+  # =====================================================
+  # DEPLOY
+  # =====================================================
+
   deploy:
+
     runs-on: ubuntu-latest
+
     needs: build
 
+
     steps:
+
       # ---------------------------------------------------
       # DOWNLOAD DIST
       # ---------------------------------------------------
+
       - name: Download frontend artifact
+
         uses: actions/download-artifact@v4
+
         with:
           name: frontend-dist
           path: dist
 
+
       # ---------------------------------------------------
       # VERIFY DOWNLOADED ARTIFACT
       # ---------------------------------------------------
+
       - name: Verify deployment package
+
         run: |
           echo "Deployment package:"
+
           ls -la dist
+
+          echo "Deployment assets:"
+
           ls -la dist/assets
+
 
       # ---------------------------------------------------
       # DEPLOY TO UAT
       # ---------------------------------------------------
+
       - name: Deploy to Azure Web App
+
         id: deploy-to-webapp
+
         uses: azure/webapps-deploy@v3
+
         with:
           app-name: "execsalesfrontdev"
+
           slot-name: "Production"
+
           package: ./dist
+
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_5EED8CE9C7B14E8DADEFFACAE08A6A81 }}
