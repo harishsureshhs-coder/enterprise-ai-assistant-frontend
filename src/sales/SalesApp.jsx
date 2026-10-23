@@ -14,9 +14,6 @@ import ChatWindow
 import ChatInput
   from "../components/ChatInput";
 
-import SalesResponseOptions
-  from "../components/sales/SalesResponseOptions";
-
 import SalesRecordingPanel
   from "../components/sales/SalesRecordingPanel";
 
@@ -49,6 +46,11 @@ import {
 import {
   synthesizeSalesVoiceSummary,
 } from "../services/salesVoiceApi";
+
+
+import {
+  generateSalesBriefing,
+} from "../services/salesBriefingApi";
 
 
 import {
@@ -733,6 +735,22 @@ function SalesApp() {
   const [
     voiceGenerationError,
     setVoiceGenerationError,
+  ] = useState(null);
+
+
+  // =====================================================
+  // SALES BRIEFING
+  // =====================================================
+
+  const [
+    isGeneratingSalesBriefing,
+    setIsGeneratingSalesBriefing,
+  ] = useState(false);
+
+
+  const [
+    salesBriefingError,
+    setSalesBriefingError,
   ] = useState(null);
 
 
@@ -1658,6 +1676,11 @@ function SalesApp() {
 
 
       clearVoiceSummary();
+
+
+      setSalesBriefingError(
+        null
+      );
     }
 
 
@@ -1994,6 +2017,321 @@ function SalesApp() {
     ) {
 
       clearVoiceSummary();
+    }
+  }
+
+
+  // =====================================================
+  // SALES BRIEFING
+  // =====================================================
+
+  async function handleSalesBriefingClick() {
+
+    if (
+      !selectedCustomer?.bmd_code ||
+      isSalesBusy ||
+      isGeneratingSalesBriefing
+    ) {
+
+      return;
+    }
+
+
+    const loadingId =
+      crypto.randomUUID();
+
+
+    try {
+
+      setIsGeneratingSalesBriefing(
+        true
+      );
+
+
+      setSalesBriefingError(
+        null
+      );
+
+
+      setVoiceGenerationError(
+        null
+      );
+
+
+      clearVoiceSummary();
+
+
+      setResponseMode(
+        "podcast"
+      );
+
+
+      // ===============================================
+      // SHOW PREPARING MESSAGE IN CHAT
+      // ===============================================
+
+      setMessages(
+        (
+          previous
+        ) => [
+
+          ...previous,
+
+          {
+            id:
+              loadingId,
+
+            role:
+              "ai",
+
+            engine:
+              "SALES_BRIEFING",
+
+            text:
+              selectedCustomer?.bmd_name
+                ? (
+                    `Preparing a personalized Sales Briefing for ${selectedCustomer.bmd_name}...`
+                  )
+                : (
+                    "Preparing your personalized Sales Briefing..."
+                  ),
+
+            status:
+              "loading",
+
+            responseMode:
+              "podcast",
+
+            rows:
+              [],
+
+            rowCount:
+              0,
+
+            keyInsights:
+              [],
+
+            suggestions:
+              [],
+
+            resolvedCustomer:
+              selectedCustomer,
+
+            isLoading:
+              true,
+          },
+
+        ]
+      );
+
+
+      // ===============================================
+      // GENERATE GROUNDED SALES BRIEFING
+      //
+      // IMPORTANT:
+      // customerSnapshot is the exact snapshot already
+      // displayed in the right-side Customer Context panel.
+      // ===============================================
+
+      const briefing =
+        await generateSalesBriefing({
+          bmdCode:
+            selectedCustomer.bmd_code,
+
+          businessSnapshot:
+            customerSnapshot,
+        });
+
+
+      const script =
+        String(
+          briefing?.script ||
+          briefing?.voice_summary_text ||
+          ""
+        ).trim();
+
+
+      if (
+        !script
+      ) {
+
+        throw new Error(
+          "The Sales Briefing did not return a script."
+        );
+      }
+
+
+      // ===============================================
+      // SHOW BRIEFING TRANSCRIPT IN CHAT
+      // ===============================================
+
+      setMessages(
+        (
+          previous
+        ) =>
+          previous.map(
+            (
+              message
+            ) =>
+              message.id ===
+                loadingId
+                ? {
+                    ...message,
+
+                    engine:
+                      "SALES_BRIEFING",
+
+                    text:
+                      script,
+
+                    answer:
+                      script,
+
+                    content:
+                      script,
+
+                    responseMode:
+                      "podcast",
+
+                    status:
+                      "success",
+
+                    source:
+                      briefing?.source ||
+                      "Sales Briefing",
+
+                    resolvedCustomer:
+                      selectedCustomer,
+
+                    isLoading:
+                      false,
+                  }
+                : message
+          )
+      );
+
+
+      // ===============================================
+      // REUSE EXISTING SALES VOICE SERVICE
+      // ===============================================
+
+      try {
+
+        setIsGeneratingVoice(
+          true
+        );
+
+
+        setVoiceGenerationError(
+          null
+        );
+
+
+        const audioBlob =
+          await synthesizeSalesVoiceSummary({
+            text:
+              script,
+          });
+
+
+        const audioUrl =
+          URL.createObjectURL(
+            audioBlob
+          );
+
+
+        setVoiceAudioUrl(
+          audioUrl
+        );
+
+
+      } catch (
+        voiceError
+      ) {
+
+        console.error(
+          "Unable to synthesize Sales Briefing audio:",
+          voiceError
+        );
+
+
+        setVoiceGenerationError(
+          voiceError instanceof Error
+            ? voiceError.message
+            : "Sales Briefing text was generated, but audio could not be created."
+        );
+
+
+      } finally {
+
+        setIsGeneratingVoice(
+          false
+        );
+      }
+
+
+    } catch (
+      error
+    ) {
+
+      console.error(
+        "Unable to generate Sales Briefing:",
+        error
+      );
+
+
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to generate Sales Briefing.";
+
+
+      setSalesBriefingError(
+        message
+      );
+
+
+      setMessages(
+        (
+          previous
+        ) =>
+          previous.map(
+            (
+              item
+            ) =>
+              item.id ===
+                loadingId
+                ? {
+                    ...item,
+
+                    engine:
+                      "SALES_BRIEFING",
+
+                    text:
+                      message,
+
+                    status:
+                      "error",
+
+                    source:
+                      "Sales Briefing",
+
+                    responseMode:
+                      "podcast",
+
+                    isLoading:
+                      false,
+                  }
+                : item
+          )
+      );
+
+
+    } finally {
+
+      setIsGeneratingSalesBriefing(
+        false
+      );
     }
   }
 
@@ -3232,7 +3570,8 @@ function SalesApp() {
       isSavingRecording ||
       isTranscribing ||
       isEndingVisit ||
-      isGeneratingVoice
+      isGeneratingVoice ||
+      isGeneratingSalesBriefing
     ) {
 
       return;
@@ -3260,6 +3599,11 @@ function SalesApp() {
 
 
     clearVoiceSummary();
+
+
+    setSalesBriefingError(
+      null
+    );
 
 
     setSelectedCustomer(
@@ -3296,6 +3640,7 @@ function SalesApp() {
       isTranscribing ||
       isEndingVisit ||
       isGeneratingVoice ||
+      isGeneratingSalesBriefing ||
       !conversationId
     ) {
 
@@ -3304,6 +3649,11 @@ function SalesApp() {
 
 
     clearVoiceSummary();
+
+
+    setSalesBriefingError(
+      null
+    );
 
 
     setIsLoading(
@@ -3394,7 +3744,8 @@ function SalesApp() {
     isSavingRecording ||
     isTranscribing ||
     isEndingVisit ||
-    isGeneratingVoice;
+    isGeneratingVoice ||
+    isGeneratingSalesBriefing;
 
 
   // =====================================================
@@ -3543,19 +3894,221 @@ function SalesApp() {
 
             {/* RESPONSE FORMAT */}
 
-            <SalesResponseOptions
-              selectedMode={
-                responseMode
-              }
+            <div
+              className=
+                "sales-response-options"
+            >
 
-              onSelect={
-                handleResponseModeSelect
-              }
+              <div
+                className=
+                  "sales-options-header"
+              >
 
-              disabled={
-                isSalesBusy
-              }
-            />
+                <strong>
+                  How would you like the information?
+                </strong>
+
+                <span>
+                  Select a response format
+                </span>
+
+              </div>
+
+
+              <div
+                className=
+                  "sales-options-grid"
+              >
+
+                {/* SALES BRIEFING */}
+
+                <button
+                  type="button"
+
+                  className={
+                    `sales-option-card ${
+                      responseMode ===
+                        "podcast"
+                        ? "selected"
+                        : ""
+                    }`
+                  }
+
+                  disabled={
+                    isSalesBusy ||
+                    !selectedCustomer?.bmd_code
+                  }
+
+                  onClick={
+                    handleSalesBriefingClick
+                  }
+                >
+
+                  <span
+                    className=
+                      "sales-option-icon"
+                  >
+                    🎧
+                  </span>
+
+
+                  <span
+                    className=
+                      "sales-option-content"
+                  >
+
+                    <strong>
+                      {
+                        isGeneratingSalesBriefing
+                          ? "Preparing Sales Briefing..."
+                          : "Sales Briefing"
+                      }
+                    </strong>
+
+
+                    <small>
+                      {
+                        !selectedCustomer?.bmd_code
+                          ? (
+                              "Select a customer to generate a personalized briefing."
+                            )
+                          : selectedCustomer?.bmd_name
+                            ? (
+                                `Pre-visit briefing for ${selectedCustomer.bmd_name}`
+                              )
+                            : (
+                                "Listen to a personalized pre-visit customer briefing."
+                              )
+                      }
+                    </small>
+
+                  </span>
+
+                </button>
+
+
+                {/* VOICE SUMMARY */}
+
+                <button
+                  type="button"
+
+                  className={
+                    `sales-option-card ${
+                      responseMode ===
+                        "voice"
+                        ? "selected"
+                        : ""
+                    }`
+                  }
+
+                  disabled={
+                    isSalesBusy
+                  }
+
+                  onClick={
+                    () =>
+                      handleResponseModeSelect(
+                        "voice"
+                      )
+                  }
+                >
+
+                  <span
+                    className=
+                      "sales-option-icon"
+                  >
+                    🔊
+                  </span>
+
+
+                  <span
+                    className=
+                      "sales-option-content"
+                  >
+
+                    <strong>
+                      Voice Summary
+                    </strong>
+
+
+                    <small>
+                      Get the current response as a short voice summary.
+                    </small>
+
+                  </span>
+
+                </button>
+
+
+                {/* TEXT SUMMARY */}
+
+                <button
+                  type="button"
+
+                  className={
+                    `sales-option-card ${
+                      responseMode ===
+                        "text"
+                        ? "selected"
+                        : ""
+                    }`
+                  }
+
+                  disabled={
+                    isSalesBusy
+                  }
+
+                  onClick={
+                    () =>
+                      handleResponseModeSelect(
+                        "text"
+                      )
+                  }
+                >
+
+                  <span
+                    className=
+                      "sales-option-icon"
+                  >
+                    📄
+                  </span>
+
+
+                  <span
+                    className=
+                      "sales-option-content"
+                  >
+
+                    <strong>
+                      Text Summary
+                    </strong>
+
+
+                    <small>
+                      View the response as a concise text summary.
+                    </small>
+
+                  </span>
+
+                </button>
+
+              </div>
+
+
+              {salesBriefingError && (
+
+                <div
+                  className=
+                    "sales-recording-error"
+                >
+
+                  {salesBriefingError}
+
+                </div>
+
+              )}
+
+            </div>
 
 
             {/* CHAT INPUT */}
