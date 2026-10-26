@@ -10,11 +10,13 @@ const API_BASE_URL =
 
 export async function generateSalesBriefing({
   bmdCode,
+  businessSnapshot,
 }) {
 
   const cleanBmdCode =
     String(
-      bmdCode || ""
+      bmdCode ||
+      ""
     ).trim();
 
 
@@ -45,6 +47,10 @@ export async function generateSalesBriefing({
             {
               bmd_code:
                 cleanBmdCode,
+
+              business_snapshot:
+                businessSnapshot ||
+                null,
             }
           ),
       }
@@ -58,10 +64,12 @@ export async function generateSalesBriefing({
     let errorMessage =
       "Unable to generate Sales Briefing.";
 
+
     try {
 
       const errorBody =
         await response.json();
+
 
       errorMessage =
         errorBody?.detail ||
@@ -70,7 +78,24 @@ export async function generateSalesBriefing({
 
     } catch {
 
-      // Keep fallback message.
+      try {
+
+        const errorText =
+          await response.text();
+
+
+        if (
+          errorText
+        ) {
+
+          errorMessage =
+            errorText;
+        }
+
+      } catch {
+
+        // Keep fallback message.
+      }
     }
 
 
