@@ -14,9 +14,6 @@ import ChatWindow
 import ChatInput
   from "../components/ChatInput";
 
-import SalesResponseOptions
-  from "../components/sales/SalesResponseOptions";
-
 import SalesRecordingPanel
   from "../components/sales/SalesRecordingPanel";
 
@@ -49,6 +46,11 @@ import {
 import {
   synthesizeSalesVoiceSummary,
 } from "../services/salesVoiceApi";
+
+
+import {
+  generateSalesBriefing,
+} from "../services/salesBriefingApi";
 
 
 import {
@@ -734,6 +736,34 @@ function SalesApp() {
     voiceGenerationError,
     setVoiceGenerationError,
   ] = useState(null);
+
+
+  // =====================================================
+  // SALES BRIEFING
+  // =====================================================
+
+  const [
+    isGeneratingSalesBriefing,
+    setIsGeneratingSalesBriefing,
+  ] = useState(false);
+
+
+  const [
+    salesBriefingError,
+    setSalesBriefingError,
+  ] = useState(null);
+
+
+  const [
+    salesBriefing,
+    setSalesBriefing,
+  ] = useState(null);
+
+
+  const [
+    showSalesBriefingTranscript,
+    setShowSalesBriefingTranscript,
+  ] = useState(false);
 
 
   // =====================================================
@@ -1658,6 +1688,21 @@ function SalesApp() {
 
 
       clearVoiceSummary();
+
+
+      setSalesBriefingError(
+        null
+      );
+
+
+      setSalesBriefing(
+        null
+      );
+
+
+      setShowSalesBriefingTranscript(
+        false
+      );
     }
 
 
@@ -1994,6 +2039,340 @@ function SalesApp() {
     ) {
 
       clearVoiceSummary();
+    }
+  }
+
+
+  // =====================================================
+  // SALES BRIEFING
+  // =====================================================
+
+  async function handleSalesBriefingClick() {
+
+    if (
+      !selectedCustomer?.bmd_code ||
+      isSalesBusy ||
+      isGeneratingSalesBriefing
+    ) {
+
+      return;
+    }
+
+
+    const loadingId =
+      crypto.randomUUID();
+
+
+    try {
+
+      setIsGeneratingSalesBriefing(
+        true
+      );
+
+
+      setSalesBriefingError(
+        null
+      );
+
+
+      setVoiceGenerationError(
+        null
+      );
+
+
+      clearVoiceSummary();
+
+
+      setResponseMode(
+        "podcast"
+      );
+
+
+      // ===============================================
+      // SHOW PREPARING MESSAGE IN CHAT
+      // ===============================================
+
+      setMessages(
+        (
+          previous
+        ) => [
+
+          ...previous,
+
+          {
+            id:
+              loadingId,
+
+            role:
+              "ai",
+
+            engine:
+              "SALES_BRIEFING",
+
+            text:
+              selectedCustomer?.bmd_name
+                ? (
+                    `Preparing a personalized Sales Briefing for ${selectedCustomer.bmd_name}...`
+                  )
+                : (
+                    "Preparing your personalized Sales Briefing..."
+                  ),
+
+            status:
+              "loading",
+
+            responseMode:
+              "podcast",
+
+            rows:
+              [],
+
+            rowCount:
+              0,
+
+            keyInsights:
+              [],
+
+            suggestions:
+              [],
+
+            resolvedCustomer:
+              selectedCustomer,
+
+            isLoading:
+              true,
+          },
+
+        ]
+      );
+
+
+      // ===============================================
+      // GENERATE GROUNDED SALES BRIEFING
+      //
+      // IMPORTANT:
+      // customerSnapshot is the exact snapshot already
+      // displayed in the right-side Customer Context panel.
+      // ===============================================
+
+      const briefing =
+        await generateSalesBriefing({
+          bmdCode:
+            selectedCustomer.bmd_code,
+
+          businessSnapshot:
+            customerSnapshot,
+        });
+
+
+      const script =
+        String(
+          briefing?.script ||
+          briefing?.voice_summary_text ||
+          ""
+        ).trim();
+
+
+      if (
+        !script
+      ) {
+
+        throw new Error(
+          "The Sales Briefing did not return a script."
+        );
+      }
+
+
+      // ===============================================
+      // STORE INTELLIGENCE FOR THE COMPACT BRIEFING CARD
+      //
+      // The full transcript is intentionally NOT dumped
+      // into the chat anymore.
+      // ===============================================
+
+      setSalesBriefing(
+        {
+          ...briefing,
+          script,
+        }
+      );
+
+
+      setShowSalesBriefingTranscript(
+        false
+      );
+
+
+      setMessages(
+        (
+          previous
+        ) =>
+          previous.map(
+            (
+              message
+            ) =>
+              message.id ===
+                loadingId
+                ? {
+                    ...message,
+
+                    engine:
+                      "SALES_BRIEFING",
+
+                    text:
+                      briefing?.headline ||
+                      "Your Sales Briefing is ready. Use the audio player and today's focus below.",
+
+                    answer:
+                      briefing?.headline ||
+                      "Your Sales Briefing is ready.",
+
+                    content:
+                      briefing?.headline ||
+                      "Your Sales Briefing is ready.",
+
+                    responseMode:
+                      "podcast",
+
+                    status:
+                      "success",
+
+                    source:
+                      briefing?.source ||
+                      "Sales Briefing Intelligence",
+
+                    resolvedCustomer:
+                      selectedCustomer,
+
+                    isLoading:
+                      false,
+                  }
+                : message
+          )
+      );
+
+
+      // ===============================================
+      // REUSE EXISTING SALES VOICE SERVICE
+      // ===============================================
+
+      try {
+
+        setIsGeneratingVoice(
+          true
+        );
+
+
+        setVoiceGenerationError(
+          null
+        );
+
+
+        const audioBlob =
+          await synthesizeSalesVoiceSummary({
+            text:
+              script,
+          });
+
+
+        const audioUrl =
+          URL.createObjectURL(
+            audioBlob
+          );
+
+
+        setVoiceAudioUrl(
+          audioUrl
+        );
+
+
+      } catch (
+        voiceError
+      ) {
+
+        console.error(
+          "Unable to synthesize Sales Briefing audio:",
+          voiceError
+        );
+
+
+        setVoiceGenerationError(
+          voiceError instanceof Error
+            ? voiceError.message
+            : "Sales Briefing text was generated, but audio could not be created."
+        );
+
+
+      } finally {
+
+        setIsGeneratingVoice(
+          false
+        );
+      }
+
+
+    } catch (
+      error
+    ) {
+
+      console.error(
+        "Unable to generate Sales Briefing:",
+        error
+      );
+
+
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to generate Sales Briefing.";
+
+
+      setSalesBriefingError(
+        message
+      );
+
+
+      setMessages(
+        (
+          previous
+        ) =>
+          previous.map(
+            (
+              item
+            ) =>
+              item.id ===
+                loadingId
+                ? {
+                    ...item,
+
+                    engine:
+                      "SALES_BRIEFING",
+
+                    text:
+                      message,
+
+                    status:
+                      "error",
+
+                    source:
+                      "Sales Briefing",
+
+                    responseMode:
+                      "podcast",
+
+                    isLoading:
+                      false,
+                  }
+                : item
+          )
+      );
+
+
+    } finally {
+
+      setIsGeneratingSalesBriefing(
+        false
+      );
     }
   }
 
@@ -3232,7 +3611,8 @@ function SalesApp() {
       isSavingRecording ||
       isTranscribing ||
       isEndingVisit ||
-      isGeneratingVoice
+      isGeneratingVoice ||
+      isGeneratingSalesBriefing
     ) {
 
       return;
@@ -3260,6 +3640,21 @@ function SalesApp() {
 
 
     clearVoiceSummary();
+
+
+    setSalesBriefingError(
+      null
+    );
+
+
+    setSalesBriefing(
+      null
+    );
+
+
+    setShowSalesBriefingTranscript(
+      false
+    );
 
 
     setSelectedCustomer(
@@ -3296,6 +3691,7 @@ function SalesApp() {
       isTranscribing ||
       isEndingVisit ||
       isGeneratingVoice ||
+      isGeneratingSalesBriefing ||
       !conversationId
     ) {
 
@@ -3304,6 +3700,21 @@ function SalesApp() {
 
 
     clearVoiceSummary();
+
+
+    setSalesBriefingError(
+      null
+    );
+
+
+    setSalesBriefing(
+      null
+    );
+
+
+    setShowSalesBriefingTranscript(
+      false
+    );
 
 
     setIsLoading(
@@ -3394,7 +3805,8 @@ function SalesApp() {
     isSavingRecording ||
     isTranscribing ||
     isEndingVisit ||
-    isGeneratingVoice;
+    isGeneratingVoice ||
+    isGeneratingSalesBriefing;
 
 
   // =====================================================
@@ -3524,7 +3936,482 @@ function SalesApp() {
               "sales-center-controls"
           >
 
-            {/* VOICE SUMMARY PLAYER */}
+            {/* SALES BRIEFING INTELLIGENCE CARD */}
+
+            {
+              responseMode === "podcast" &&
+              salesBriefing && (
+
+                <div
+                  style={{
+                    marginBottom:
+                      "12px",
+                    padding:
+                      "16px",
+                    border:
+                      "1px solid #d7e2ee",
+                    borderRadius:
+                      "14px",
+                    background:
+                      "#ffffff",
+                    boxShadow:
+                      "0 2px 8px rgba(0,0,0,0.04)",
+                  }}
+                >
+
+                  <div
+                    style={{
+                      display:
+                        "flex",
+                      justifyContent:
+                        "space-between",
+                      gap:
+                        "16px",
+                      alignItems:
+                        "flex-start",
+                      marginBottom:
+                        "12px",
+                    }}
+                  >
+
+                    <div>
+
+                      <div
+                        style={{
+                          fontSize:
+                            "13px",
+                          fontWeight:
+                            700,
+                          marginBottom:
+                            "4px",
+                        }}
+                      >
+                        🎧 Sales Briefing
+                      </div>
+
+
+                      <div
+                        style={{
+                          fontSize:
+                            "12px",
+                          fontWeight:
+                            600,
+                        }}
+                      >
+                        {
+                          salesBriefing?.customer_name ||
+                          selectedCustomer?.bmd_name ||
+                          "Selected customer"
+                        }
+                      </div>
+
+
+                      {
+                        salesBriefing?.headline && (
+
+                          <div
+                            style={{
+                              marginTop:
+                                "6px",
+                              fontSize:
+                                "12px",
+                              color:
+                                "#44546a",
+                              lineHeight:
+                                1.45,
+                            }}
+                          >
+                            {
+                              salesBriefing.headline
+                            }
+                          </div>
+
+                        )
+                      }
+
+                    </div>
+
+
+                    {
+                      salesBriefing?.performance_status && (
+
+                        <span
+                          style={{
+                            padding:
+                              "5px 9px",
+                            borderRadius:
+                              "999px",
+                            background:
+                              "#eef4fb",
+                            fontSize:
+                              "10px",
+                            fontWeight:
+                              700,
+                            whiteSpace:
+                              "nowrap",
+                          }}
+                        >
+                          {
+                            String(
+                              salesBriefing.performance_status
+                            )
+                              .replaceAll(
+                                "_",
+                                " "
+                              )
+                          }
+                        </span>
+
+                      )
+                    }
+
+                  </div>
+
+
+                  {
+                    Array.isArray(
+                      salesBriefing?.key_metrics
+                    ) &&
+                    salesBriefing.key_metrics.length >
+                      0 && (
+
+                      <div
+                        style={{
+                          display:
+                            "grid",
+                          gridTemplateColumns:
+                            "repeat(auto-fit, minmax(110px, 1fr))",
+                          gap:
+                            "8px",
+                          marginBottom:
+                            "14px",
+                        }}
+                      >
+
+                        {
+                          salesBriefing.key_metrics
+                            .slice(
+                              0,
+                              5
+                            )
+                            .map(
+                              (
+                                metric,
+                                index
+                              ) => (
+
+                                <div
+                                  key={
+                                    `${metric?.label || "metric"}-${index}`
+                                  }
+                                  style={{
+                                    padding:
+                                      "9px 10px",
+                                    border:
+                                      "1px solid #edf1f5",
+                                    borderRadius:
+                                      "10px",
+                                    background:
+                                      "#f8fafc",
+                                  }}
+                                >
+
+                                  <div
+                                    style={{
+                                      fontSize:
+                                        "9px",
+                                      color:
+                                        "#667085",
+                                    }}
+                                  >
+                                    {
+                                      metric?.label
+                                    }
+                                  </div>
+
+
+                                  <div
+                                    style={{
+                                      marginTop:
+                                        "2px",
+                                      fontSize:
+                                        "13px",
+                                      fontWeight:
+                                        700,
+                                    }}
+                                  >
+                                    {
+                                      metric?.value
+                                    }
+                                    {
+                                      metric?.unit
+                                        ? ` ${metric.unit}`
+                                        : ""
+                                    }
+                                  </div>
+
+                                </div>
+
+                              )
+                            )
+                        }
+
+                      </div>
+
+                    )
+                  }
+
+
+                  {
+                    Array.isArray(
+                      salesBriefing?.today_focus
+                    ) &&
+                    salesBriefing.today_focus.length >
+                      0 && (
+
+                      <div
+                        style={{
+                          marginBottom:
+                            "12px",
+                        }}
+                      >
+
+                        <div
+                          style={{
+                            fontSize:
+                              "11px",
+                            fontWeight:
+                              700,
+                            marginBottom:
+                              "6px",
+                          }}
+                        >
+                          Today's Focus
+                        </div>
+
+
+                        {
+                          salesBriefing.today_focus
+                            .slice(
+                              0,
+                              3
+                            )
+                            .map(
+                              (
+                                item,
+                                index
+                              ) => (
+
+                                <div
+                                  key={
+                                    `${item?.type || "focus"}-${index}`
+                                  }
+                                  style={{
+                                    display:
+                                      "flex",
+                                    gap:
+                                      "8px",
+                                    padding:
+                                      "5px 0",
+                                    fontSize:
+                                      "11px",
+                                    lineHeight:
+                                      1.4,
+                                  }}
+                                >
+
+                                  <strong>
+                                    {
+                                      index + 1
+                                    }.
+                                  </strong>
+
+
+                                  <span>
+
+                                    <strong>
+                                      {
+                                        item?.title
+                                      }
+                                    </strong>
+
+                                    {
+                                      item?.reason
+                                        ? ` — ${item.reason}`
+                                        : ""
+                                    }
+
+                                  </span>
+
+                                </div>
+
+                              )
+                            )
+                        }
+
+                      </div>
+
+                    )
+                  }
+
+
+                  {
+                    Array.isArray(
+                      salesBriefing?.dont_miss
+                    ) &&
+                    salesBriefing.dont_miss.length >
+                      0 && (
+
+                      <div
+                        style={{
+                          marginBottom:
+                            "12px",
+                          padding:
+                            "9px 10px",
+                          borderRadius:
+                            "10px",
+                          background:
+                            "#fff8e8",
+                        }}
+                      >
+
+                        <div
+                          style={{
+                            fontSize:
+                              "10px",
+                            fontWeight:
+                              700,
+                            marginBottom:
+                              "4px",
+                          }}
+                        >
+                          Don't Miss
+                        </div>
+
+
+                        {
+                          salesBriefing.dont_miss
+                            .slice(
+                              0,
+                              3
+                            )
+                            .map(
+                              (
+                                item,
+                                index
+                              ) => (
+
+                                <div
+                                  key={
+                                    `${item?.type || "alert"}-${index}`
+                                  }
+                                  style={{
+                                    fontSize:
+                                      "10px",
+                                    lineHeight:
+                                      1.4,
+                                    marginTop:
+                                      index === 0
+                                        ? 0
+                                        : "3px",
+                                  }}
+                                >
+                                  <strong>
+                                    {
+                                      item?.label
+                                    }:
+                                  </strong>
+                                  {" "}
+                                  {
+                                    item?.text
+                                  }
+                                </div>
+
+                              )
+                            )
+                        }
+
+                      </div>
+
+                    )
+                  }
+
+
+                  <button
+                    type="button"
+                    onClick={
+                      () =>
+                        setShowSalesBriefingTranscript(
+                          (
+                            previous
+                          ) =>
+                            !previous
+                        )
+                    }
+                    style={{
+                      border:
+                        "none",
+                      background:
+                        "transparent",
+                      padding:
+                        0,
+                      fontSize:
+                        "11px",
+                      fontWeight:
+                        700,
+                      cursor:
+                        "pointer",
+                    }}
+                  >
+                    {
+                      showSalesBriefingTranscript
+                        ? "Hide Transcript"
+                        : "View Transcript"
+                    }
+                  </button>
+
+
+                  {
+                    showSalesBriefingTranscript &&
+                    salesBriefing?.script && (
+
+                      <div
+                        style={{
+                          marginTop:
+                            "10px",
+                          padding:
+                            "12px",
+                          borderRadius:
+                            "10px",
+                          background:
+                            "#f8fafc",
+                          fontSize:
+                            "11px",
+                          lineHeight:
+                            1.6,
+                          whiteSpace:
+                            "pre-wrap",
+                          maxHeight:
+                            "240px",
+                          overflowY:
+                            "auto",
+                        }}
+                      >
+                        {
+                          salesBriefing.script
+                        }
+                      </div>
+
+                    )
+                  }
+
+                </div>
+
+              )
+            }
+
+
+            {/* VOICE PLAYER */}
 
             <SalesVoicePlayer
               audioUrl={
@@ -3543,19 +4430,228 @@ function SalesApp() {
 
             {/* RESPONSE FORMAT */}
 
-            <SalesResponseOptions
-              selectedMode={
-                responseMode
-              }
+            <div
+              className=
+                "sales-response-options"
+            >
 
-              onSelect={
-                handleResponseModeSelect
-              }
+              <div
+                className=
+                  "sales-options-header"
+              >
 
-              disabled={
-                isSalesBusy
-              }
-            />
+                <strong>
+                  How would you like the information?
+                </strong>
+
+                <span>
+                  Select a response format
+                </span>
+
+              </div>
+
+
+              <div
+                className=
+                  "sales-options-grid"
+              >
+
+                {/* SALES BRIEFING */}
+
+                <button
+                  type="button"
+
+                  className={
+                    `sales-option-card ${
+                      responseMode ===
+                        "podcast"
+                        ? "selected"
+                        : ""
+                    }`
+                  }
+
+                  disabled={
+                    isSalesBusy ||
+                    !selectedCustomer?.bmd_code
+                  }
+
+                  onClick={
+                    handleSalesBriefingClick
+                  }
+                >
+
+                  <span
+                    className=
+                      "sales-option-icon"
+                  >
+                    🎧
+                  </span>
+
+
+                  <span
+                    className=
+                      "sales-option-content"
+                  >
+
+                    <strong>
+                      {
+                        isGeneratingSalesBriefing
+                          ? "Preparing Sales Briefing..."
+                          : "Sales Briefing"
+                      }
+                    </strong>
+
+
+                    <small>
+                      {
+                        !selectedCustomer?.bmd_code
+                          ? (
+                              "Select a customer to generate a personalized briefing."
+                            )
+                          : (
+                              salesBriefing?.customer_code ===
+                              selectedCustomer?.bmd_code
+                            )
+                            ? (
+                                "Briefing ready — review today's focus or listen again."
+                              )
+                            : selectedCustomer?.bmd_name
+                              ? (
+                                  `Generate pre-visit intelligence for ${selectedCustomer.bmd_name}`
+                                )
+                              : (
+                                  "Generate personalized pre-visit intelligence."
+                                )
+                      }
+                    </small>
+
+                  </span>
+
+                </button>
+
+
+                {/* VOICE SUMMARY */}
+
+                <button
+                  type="button"
+
+                  className={
+                    `sales-option-card ${
+                      responseMode ===
+                        "voice"
+                        ? "selected"
+                        : ""
+                    }`
+                  }
+
+                  disabled={
+                    isSalesBusy
+                  }
+
+                  onClick={
+                    () =>
+                      handleResponseModeSelect(
+                        "voice"
+                      )
+                  }
+                >
+
+                  <span
+                    className=
+                      "sales-option-icon"
+                  >
+                    🔊
+                  </span>
+
+
+                  <span
+                    className=
+                      "sales-option-content"
+                  >
+
+                    <strong>
+                      Voice Summary
+                    </strong>
+
+
+                    <small>
+                      Get the current response as a short voice summary.
+                    </small>
+
+                  </span>
+
+                </button>
+
+
+                {/* TEXT SUMMARY */}
+
+                <button
+                  type="button"
+
+                  className={
+                    `sales-option-card ${
+                      responseMode ===
+                        "text"
+                        ? "selected"
+                        : ""
+                    }`
+                  }
+
+                  disabled={
+                    isSalesBusy
+                  }
+
+                  onClick={
+                    () =>
+                      handleResponseModeSelect(
+                        "text"
+                      )
+                  }
+                >
+
+                  <span
+                    className=
+                      "sales-option-icon"
+                  >
+                    📄
+                  </span>
+
+
+                  <span
+                    className=
+                      "sales-option-content"
+                  >
+
+                    <strong>
+                      Text Summary
+                    </strong>
+
+
+                    <small>
+                      View the response as a concise text summary.
+                    </small>
+
+                  </span>
+
+                </button>
+
+              </div>
+
+
+              {salesBriefingError && (
+
+                <div
+                  className=
+                    "sales-recording-error"
+                >
+
+                  {salesBriefingError}
+
+                </div>
+
+              )}
+
+            </div>
 
 
             {/* CHAT INPUT */}
